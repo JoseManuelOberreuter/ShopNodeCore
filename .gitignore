@@ -1,2 +1,6 @@
 .env
-node_modules
+/node_modules
+/uploads
+/coverage
+/utils/testSystem.js
+/utils/seedProducts.js
