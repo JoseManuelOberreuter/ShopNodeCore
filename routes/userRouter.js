@@ -13,17 +13,14 @@ router.post('/login', loginUser);
 // Ruta para verificar la cuenta con el token
 router.get('/verify/:token', verifyUser);
 
-// Ruta para solicitar la recuperación de contraseña
-router.post('/forgot-password', requestPasswordReset);
+// Ruta para solicitar cambio de contraseña
+router.post('/reset-password-request', requestPasswordReset);
 
-// Ruta para restablecer la contraseña con un token
+// Ruta para cambiar la contraseña con el token
 router.post('/reset-password/:token', resetPassword);
 
-// Ruta para actualizar un usuario
-router.put('/update/:id', authMiddleware, updateUser);
-
-// Ruta para traer los datos del usuario
-router.get('/user-data', authMiddleware, getUserData);
+// Ruta para traer los datos del usuario por ID o email
+router.get('/profile/:identifier', authMiddleware, getUserData);
 
 // Ruta para subir la foto de perfil 
 router.post('/upload-avatar', authMiddleware, upload.single('avatar'), uploadAvatar);

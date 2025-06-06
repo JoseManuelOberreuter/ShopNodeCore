@@ -2,6 +2,7 @@ const User = require('../models/userModel');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 
 const { sendVerificationEmail, sendPasswordResetEmail  } = require('../utils/mailer');
 const { validatePassword } = require('../utils/passwordValidator'); 
@@ -262,17 +263,21 @@ const deleteUser = async (req, res) => {
   }
 };
 
-// 📌 Solicita los datos del usuario
+// 📌 Obtener datos del usuario por ID o email
 const getUserData = async (req, res) => {
   try {
-    // Obtener el token del header de autorización
-    const token = req.header('Authorization').replace('Bearer ', '');
+    const { identifier } = req.params; // Puede ser ID o email
 
-    // Verificar y decodificar el token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Intentar buscar por ID primero
+    let user = null;
+    if (mongoose.Types.ObjectId.isValid(identifier)) {
+      user = await User.findById(identifier).select('-password -verificationToken');
+    }
 
-    // Buscar al usuario por el ID que está en el token
-    const user = await User.findById(decoded.id).select('-password -verificationToken');
+    // Si no se encuentra por ID, buscar por email
+    if (!user) {
+      user = await User.findOne({ email: identifier }).select('-password -verificationToken');
+    }
 
     if (!user) {
       return res.status(404).json({ error: "Usuario no encontrado" });

@@ -285,46 +285,7 @@
  *       500:
  *         description: Error del servidor
  * 
- * /users/profile:
- *   get:
- *     summary: Obtener perfil del usuario
- *     description: Obtiene la información del perfil del usuario autenticado
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Perfil obtenido exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: object
- *                   properties:
- *                     _id:
- *                       type: string
- *                     name:
- *                       type: string
- *                     email:
- *                       type: string
- *                     role:
- *                       type: string
- *                       enum: [user, admin]
- *                     isVerified:
- *                       type: boolean
- *                     createdAt:
- *                       type: string
- *                       format: date-time
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       500:
- *         description: Error del servidor
- * 
+ * /users/profile: 
  *   put:
  *     summary: Actualizar perfil del usuario
  *     description: Actualiza la información del perfil del usuario
@@ -381,6 +342,49 @@
  *         description: Datos inválidos
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         description: Error del servidor
+ * 
+ * /users/profile/{identifier}:
+ *   get:
+ *     summary: Obtener perfil del usuario por ID o email
+ *     description: Obtiene la información del perfil de un usuario específico usando su ID o email
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: identifier
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de MongoDB o dirección de email del usuario
+ *     responses:
+ *       200:
+ *         description: Perfil obtenido exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 _id:
+ *                   type: string
+ *                 name:
+ *                   type: string
+ *                 email:
+ *                   type: string
+ *                 role:
+ *                   type: string
+ *                   enum: [user, admin]
+ *                 isVerified:
+ *                   type: boolean
+ *                 createdAt:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       404:
+ *         description: Usuario no encontrado
  *       500:
  *         description: Error del servidor
  */ 
