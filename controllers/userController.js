@@ -150,18 +150,125 @@ const verifyUser = async (req, res) => {
     // Buscar usuario con el email del token
     const user = await User.findOne({ email: decoded.email });
 
-    if (!user) return res.status(400).json({ error: "Token inválido o usuario no encontrado" });
-    if (user.isVerified) return res.status(400).json({ error: "Cuenta ya confirmada" });
+    if (!user) {
+      return res.status(400).send(`
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>Error de Verificación - ShopNodeCore</title>
+            <style>
+              body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
+              .error { background: #ffe6e6; color: #d63031; padding: 20px; border-radius: 10px; }
+              .btn { display: inline-block; padding: 12px 24px; background: #0984e3; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <h1>🛒 ShopNodeCore</h1>
+            <div class="error">
+              <h2>❌ Error de Verificación</h2>
+              <p>Token inválido o usuario no encontrado.</p>
+              <p>Por favor, intenta registrarte nuevamente.</p>
+            </div>
+            <a href="http://localhost:5173" class="btn">Volver al Inicio</a>
+          </body>
+        </html>
+      `);
+    }
+
+    if (user.isVerified) {
+      return res.status(200).send(`
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>Cuenta Ya Verificada - ShopNodeCore</title>
+            <style>
+              body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
+              .info { background: #e6f3ff; color: #0984e3; padding: 20px; border-radius: 10px; }
+              .btn { display: inline-block; padding: 12px 24px; background: #00b894; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <h1>🛒 ShopNodeCore</h1>
+            <div class="info">
+              <h2>ℹ️ Cuenta Ya Verificada</h2>
+              <p>Tu cuenta ya estaba confirmada anteriormente.</p>
+              <p>Puedes iniciar sesión directamente.</p>
+            </div>
+            <a href="http://localhost:5173" class="btn">Iniciar Sesión</a>
+          </body>
+        </html>
+      `);
+    }
 
     // Marcar la cuenta como verificada
     user.isVerified = true;
     user.verificationToken = undefined; // Eliminamos el token de la BD
     await user.save();
 
-    res.json({ message: "Cuenta confirmada con éxito. Ya puedes iniciar sesión." });
+    // Página de éxito con redirección automática
+    res.status(200).send(`
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Verificación Exitosa - ShopNodeCore</title>
+          <style>
+            body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
+            .success { background: #e6ffed; color: #00b894; padding: 20px; border-radius: 10px; }
+            .btn { display: inline-block; padding: 12px 24px; background: #00b894; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+            .countdown { font-size: 14px; color: #666; margin-top: 15px; }
+          </style>
+          <script>
+            let countdown = 5;
+            function updateCountdown() {
+              document.getElementById('countdown').textContent = countdown;
+              countdown--;
+              if (countdown < 0) {
+                window.location.href = 'http://localhost:5173';
+              }
+            }
+            setInterval(updateCountdown, 1000);
+          </script>
+        </head>
+        <body onload="updateCountdown()">
+          <h1>🛒 ShopNodeCore</h1>
+          <div class="success">
+            <h2>✅ ¡Cuenta Verificada con Éxito!</h2>
+            <p>Tu cuenta ha sido confirmada correctamente.</p>
+            <p>Ya puedes iniciar sesión y comenzar a comprar.</p>
+          </div>
+          <a href="http://localhost:5173" class="btn">Iniciar Sesión Ahora</a>
+          <div class="countdown">
+            Serás redirigido automáticamente en <span id="countdown">5</span> segundos...
+          </div>
+        </body>
+      </html>
+    `);
+
+    console.log(`✅ Cuenta verificada exitosamente: ${user.email}`);
   } catch (error) {
     console.error("❌ Error al verificar cuenta:", error);
-    res.status(400).json({ error: "Token inválido o expirado" });
+    res.status(400).send(`
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Token Expirado - ShopNodeCore</title>
+          <style>
+            body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
+            .error { background: #ffe6e6; color: #d63031; padding: 20px; border-radius: 10px; }
+            .btn { display: inline-block; padding: 12px 24px; background: #0984e3; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <h1>🛒 ShopNodeCore</h1>
+          <div class="error">
+            <h2>⏰ Token Expirado</h2>
+            <p>El enlace de verificación ha expirado.</p>
+            <p>Por favor, intenta registrarte nuevamente para obtener un nuevo enlace.</p>
+          </div>
+          <a href="http://localhost:5173" class="btn">Registrarse Nuevamente</a>
+        </body>
+      </html>
+    `);
   }
 };
 
