@@ -139,6 +139,60 @@ const updateUser = async (req, res) => {
   }
 };
 
+// 📌 Actualizar Perfil del Usuario Autenticado
+const updateProfile = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    const userId = req.user.id; // Se obtiene del middleware de autenticación
+
+    // Buscar el usuario por su ID
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Validar que el nuevo email no esté en uso por otro usuario
+    if (email && email !== user.email) {
+      const emailExists = await User.findOne({ email });
+      if (emailExists) {
+        return res.status(400).json({ error: "El email ya está en uso por otro usuario" });
+      }
+    }
+
+    // Si hay una nueva contraseña, validarla y encriptarla
+    if (password) {
+      const passwordValidation = validatePassword(password);
+      if (!passwordValidation.isValid) {
+        return res.status(400).json({ error: passwordValidation.message });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(password, salt);
+    }
+
+    // Actualizar los campos proporcionados
+    if (name) user.name = name;
+    if (email) user.email = email;
+
+    await user.save();
+
+    // Devolver respuesta exitosa con los datos actualizados (sin contraseña)
+    res.json({
+      success: true,
+      message: "Perfil actualizado exitosamente",
+      data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error al actualizar perfil:", error);
+    res.status(500).json({ error: "Error al actualizar el perfil" });
+  }
+};
+
 // 📌 Verificar Cuenta con el Token
 const verifyUser = async (req, res) => {
   try {
@@ -424,4 +478,4 @@ const uploadAvatar = async (req, res) => {
 };
 
 
-module.exports = { registerUser, loginUser, updateUser, verifyUser, requestPasswordReset, resetPassword, deleteUser, getUserData, uploadAvatar };
+module.exports = { registerUser, loginUser, updateUser, updateProfile, verifyUser, requestPasswordReset, resetPassword, deleteUser, getUserData, uploadAvatar };
