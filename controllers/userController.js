@@ -142,7 +142,7 @@ const updateUser = async (req, res) => {
 // 📌 Actualizar Perfil del Usuario Autenticado
 const updateProfile = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, telefono, fechaNacimiento, direccion } = req.body;
     const userId = req.user.id; // Se obtiene del middleware de autenticación
 
     // Buscar el usuario por su ID
@@ -173,6 +173,9 @@ const updateProfile = async (req, res) => {
     // Actualizar los campos proporcionados
     if (name) user.name = name;
     if (email) user.email = email;
+    if (telefono !== undefined) user.telefono = telefono;
+    if (fechaNacimiento !== undefined) user.fechaNacimiento = fechaNacimiento;
+    if (direccion !== undefined) user.direccion = direccion;
 
     await user.save();
 
@@ -184,7 +187,11 @@ const updateProfile = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        telefono: user.telefono,
+        fechaNacimiento: user.fechaNacimiento,
+        direccion: user.direccion,
+        avatar: user.avatar
       }
     });
   } catch (error) {
