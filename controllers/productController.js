@@ -97,6 +97,56 @@ const getAllProducts = async (req, res) => {
   }
 };
 
+// 📌 OBTENER TODOS LOS PRODUCTOS PARA ADMIN (Sin filtros)
+const getAllProductsAdmin = async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 20, 
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Construir ordenamiento
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    // Sin filtros - obtener TODOS los productos (activos e inactivos)
+    const products = await Product.find({})
+      .sort(sortOptions)
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Product.countDocuments({});
+
+    // Obtener estadísticas adicionales para el admin
+    const stats = {
+      total: total,
+      active: await Product.countDocuments({ isActive: true }),
+      inactive: await Product.countDocuments({ isActive: false }),
+      lowStock: await Product.countDocuments({ stock: { $lte: 10 }, isActive: true })
+    };
+
+    res.status(200).json({
+      success: true,
+      data: products,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        itemsPerPage: parseInt(limit)
+      },
+      stats: stats
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener productos para administrador',
+      error: error.message
+    });
+  }
+};
+
 // 📌 OBTENER PRODUCTO POR ID (Público)
 const getProductById = async (req, res) => {
   try {
@@ -298,6 +348,7 @@ const updateStock = async (req, res) => {
 
 module.exports = {
   getAllProducts,
+  getAllProductsAdmin,
   getProductById,
   createProduct,
   updateProduct,

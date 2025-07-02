@@ -8,6 +8,7 @@ const {
   deleteProduct,
   getCategories,
   updateStock,
+  getAllProductsAdmin,
   upload
 } = require('../controllers/productController');
 
@@ -60,6 +61,66 @@ router.get('/', getAllProducts);
  *     tags: [Products]
  */
 router.get('/categories', getCategories);
+
+/**
+ * @swagger
+ * /api/products/admin/all:
+ *   get:
+ *     summary: Obtener todos los productos sin filtros (Solo Admin)
+ *     tags: [Products]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           default: createdAt
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *     responses:
+ *       200:
+ *         description: Lista de todos los productos con estadísticas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Product'
+ *                 pagination:
+ *                   type: object
+ *                 stats:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     active:
+ *                       type: integer
+ *                     inactive:
+ *                       type: integer
+ *                     lowStock:
+ *                       type: integer
+ */
+router.get('/admin/all', auth, authAdmin, getAllProductsAdmin);
 
 /**
  * @swagger

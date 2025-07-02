@@ -129,6 +129,100 @@ const addToCart = async (req, res) => {
   }
 };
 
+// 📌 SINCRONIZAR CARRITO LOCAL CON BACKEND
+const syncLocalCart = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { items } = req.body;
+
+    // Validar entrada
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Items del carrito son requeridos y deben ser un array'
+      });
+    }
+
+    // Validar que cada item tenga los campos necesarios
+    for (let item of items) {
+      if (!item.productId || !item.quantity || item.quantity <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cada item debe tener productId y quantity válidos'
+        });
+      }
+    }
+
+    // Buscar o crear carrito del usuario
+    let cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+      cart = new Cart({ user: userId, items: [] });
+    }
+
+    // Procesar cada item del carrito local
+    for (let localItem of items) {
+      const { productId, quantity } = localItem;
+
+      // Verificar que el producto existe y está activo
+      const product = await Product.findById(productId);
+      if (!product || !product.isActive) {
+        console.log(`Producto ${productId} no encontrado o inactivo, omitiendo...`);
+        continue; // Omitir este producto y continuar con los demás
+      }
+
+      // Buscar si el producto ya existe en el carrito del backend
+      const existingItemIndex = cart.items.findIndex(
+        item => item.product.toString() === productId
+      );
+
+      if (existingItemIndex > -1) {
+        // Producto ya existe, sumar cantidades
+        const newQuantity = cart.items[existingItemIndex].quantity + quantity;
+        
+        // Verificar stock disponible
+        if (product.stock < newQuantity) {
+          // Si no hay suficiente stock, usar el máximo disponible
+          cart.items[existingItemIndex].quantity = Math.min(product.stock, newQuantity);
+        } else {
+          cart.items[existingItemIndex].quantity = newQuantity;
+        }
+        
+        // Actualizar precio actual del producto
+        cart.items[existingItemIndex].price = product.price;
+      } else {
+        // Producto nuevo, agregarlo al carrito
+        const finalQuantity = Math.min(quantity, product.stock);
+        
+        if (finalQuantity > 0) {
+          cart.items.push({
+            product: productId,
+            quantity: finalQuantity,
+            price: product.price
+          });
+        }
+      }
+    }
+
+    await cart.save();
+    
+    // Populate para respuesta
+    await cart.populate('items.product', 'name price image stock isActive');
+
+    res.status(200).json({
+      success: true,
+      message: 'Carrito sincronizado exitosamente',
+      data: cart,
+      totalItems: cart.getTotalItems()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error al sincronizar carrito',
+      error: error.message
+    });
+  }
+};
+
 // 📌 ACTUALIZAR CANTIDAD DE PRODUCTO EN CARRITO
 const updateCartItem = async (req, res) => {
   try {
@@ -316,6 +410,7 @@ const getCartSummary = async (req, res) => {
 module.exports = {
   getCart,
   addToCart,
+  syncLocalCart,
   updateCartItem,
   removeFromCart,
   clearCart,

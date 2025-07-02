@@ -6,7 +6,8 @@ const {
   updateCartItem,
   removeFromCart,
   clearCart,
-  getCartSummary
+  getCartSummary,
+  syncLocalCart
 } = require('../controllers/cartController');
 
 // Importar middleware
@@ -45,6 +46,37 @@ router.get('/', auth, getCart);
  *       - bearerAuth: []
  */
 router.get('/summary', auth, getCartSummary);
+
+/**
+ * @swagger
+ * /api/cart/sync:
+ *   post:
+ *     summary: Sincronizar carrito local con backend
+ *     tags: [Cart]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - items
+ *             properties:
+ *               items:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     productId:
+ *                       type: string
+ *                     quantity:
+ *                       type: integer
+ *                     price:
+ *                       type: number
+ */
+router.post('/sync', auth, syncLocalCart);
 
 /**
  * @swagger
