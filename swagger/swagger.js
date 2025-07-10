@@ -1,5 +1,8 @@
-const swaggerJsdoc = require('swagger-jsdoc');
-const swaggerUi = require('swagger-ui-express');
+import dotenv from 'dotenv';
+dotenv.config();
+
+import swaggerJsdoc from 'swagger-jsdoc';
+import swaggerUi from 'swagger-ui-express';
 
 const options = {
   definition: {
@@ -30,12 +33,10 @@ const options = {
         name: 'ISC',
         url: 'https://opensource.org/licenses/ISC'
       }
-
-      
     },
     servers: [
       {
-        url: 'http://localhost:4005',
+        url: `http://localhost:${process.env.PORT || 4005}`,
         description: 'Servidor de desarrollo',
       },
       {
@@ -78,7 +79,7 @@ const options = {
         User: {
           type: 'object',
           properties: {
-            _id: {
+            id: {
               type: 'string',
               description: 'ID único del usuario'
             },
@@ -96,7 +97,7 @@ const options = {
               enum: ['user', 'admin'],
               description: 'Rol del usuario'
             },
-            isVerified: {
+            is_verified: {
               type: 'boolean',
               description: 'Estado de verificación del usuario'
             },
@@ -109,7 +110,7 @@ const options = {
         Product: {
           type: 'object',
           properties: {
-            _id: {
+            id: {
               type: 'string',
               description: 'ID único del producto'
             },
@@ -138,303 +139,19 @@ const options = {
               type: 'string',
               description: 'Categoría del producto'
             },
-            isActive: {
+            is_active: {
               type: 'boolean',
               description: 'Estado activo del producto'
             },
-            createdAt: {
+            created_at: {
               type: 'string',
               format: 'date-time',
               description: 'Fecha de creación'
             },
-            updatedAt: {
+            updated_at: {
               type: 'string',
               format: 'date-time',
               description: 'Fecha de última actualización'
-            }
-          }
-        },
-        CartItem: {
-          type: 'object',
-          properties: {
-            product: {
-              $ref: '#/components/schemas/Product'
-            },
-            quantity: {
-              type: 'integer',
-              minimum: 1,
-              description: 'Cantidad del producto en el carrito'
-            },
-            price: {
-              type: 'number',
-              format: 'float',
-              description: 'Precio unitario del producto'
-            }
-          }
-        },
-        Cart: {
-          type: 'object',
-          properties: {
-            _id: {
-              type: 'string',
-              description: 'ID único del carrito'
-            },
-            user: {
-              type: 'string',
-              description: 'ID del usuario propietario'
-            },
-            items: {
-              type: 'array',
-              items: {
-                $ref: '#/components/schemas/CartItem'
-              },
-              description: 'Lista de productos en el carrito'
-            },
-            totalAmount: {
-              type: 'number',
-              format: 'float',
-              description: 'Monto total del carrito'
-            },
-            createdAt: {
-              type: 'string',
-              format: 'date-time'
-            },
-            updatedAt: {
-              type: 'string',
-              format: 'date-time'
-            }
-          }
-        },
-        OrderItem: {
-          type: 'object',
-          properties: {
-            product: {
-              type: 'string',
-              description: 'ID del producto'
-            },
-            productName: {
-              type: 'string',
-              description: 'Nombre del producto al momento de la compra'
-            },
-            quantity: {
-              type: 'integer',
-              description: 'Cantidad comprada'
-            },
-            price: {
-              type: 'number',
-              format: 'float',
-              description: 'Precio unitario al momento de la compra'
-            },
-            subtotal: {
-              type: 'number',
-              format: 'float',
-              description: 'Subtotal del item'
-            }
-          }
-        },
-        ShippingAddress: {
-          type: 'object',
-          required: ['street', 'city'],
-          properties: {
-            street: {
-              type: 'string',
-              description: 'Dirección de la calle'
-            },
-            city: {
-              type: 'string',
-              description: 'Ciudad'
-            },
-            state: {
-              type: 'string',
-              description: 'Estado o provincia'
-            },
-            zipCode: {
-              type: 'string',
-              description: 'Código postal'
-            },
-            country: {
-              type: 'string',
-              description: 'País'
-            }
-          }
-        },
-        Order: {
-          type: 'object',
-          properties: {
-            _id: {
-              type: 'string',
-              description: 'ID único de la orden'
-            },
-            user: {
-              $ref: '#/components/schemas/User'
-            },
-            orderNumber: {
-              type: 'string',
-              description: 'Número único de la orden'
-            },
-            items: {
-              type: 'array',
-              items: {
-                $ref: '#/components/schemas/OrderItem'
-              }
-            },
-            totalAmount: {
-              type: 'number',
-              format: 'float',
-              description: 'Monto total de la orden'
-            },
-            status: {
-              type: 'string',
-              enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
-              description: 'Estado de la orden'
-            },
-            shippingAddress: {
-              $ref: '#/components/schemas/ShippingAddress'
-            },
-            paymentMethod: {
-              type: 'string',
-              enum: ['credit_card', 'debit_card', 'paypal', 'cash_on_delivery'],
-              description: 'Método de pago'
-            },
-            paymentStatus: {
-              type: 'string',
-              enum: ['pending', 'paid', 'failed', 'refunded'],
-              description: 'Estado del pago'
-            },
-            notes: {
-              type: 'string',
-              description: 'Notas adicionales'
-            },
-            createdAt: {
-              type: 'string',
-              format: 'date-time'
-            },
-            updatedAt: {
-              type: 'string',
-              format: 'date-time'
-            }
-          }
-        },
-        ApiResponse: {
-          type: 'object',
-          properties: {
-            success: {
-              type: 'boolean',
-              description: 'Indica si la operación fue exitosa'
-            },
-            message: {
-              type: 'string',
-              description: 'Mensaje descriptivo de la respuesta'
-            },
-            data: {
-              type: 'object',
-              description: 'Datos de respuesta'
-            },
-            error: {
-              type: 'string',
-              description: 'Mensaje de error (si aplica)'
-            }
-          }
-        },
-        PaginationInfo: {
-          type: 'object',
-          properties: {
-            currentPage: {
-              type: 'integer',
-              description: 'Página actual'
-            },
-            totalPages: {
-              type: 'integer',
-              description: 'Total de páginas'
-            },
-            totalItems: {
-              type: 'integer',
-              description: 'Total de elementos'
-            },
-            itemsPerPage: {
-              type: 'integer',
-              description: 'Elementos por página'
-            }
-          }
-        }
-      },
-      responses: {
-        UnauthorizedError: {
-          description: 'Token de acceso faltante o inválido',
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  error: {
-                    type: 'string',
-                    example: 'Acceso denegado. No hay token.'
-                  }
-                }
-              }
-            }
-          }
-        },
-        ForbiddenError: {
-          description: 'Acceso denegado por permisos insuficientes',
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  success: {
-                    type: 'boolean',
-                    example: false
-                  },
-                  message: {
-                    type: 'string',
-                    example: 'Acceso denegado. Se requieren permisos de administrador'
-                  }
-                }
-              }
-            }
-          }
-        },
-        NotFoundError: {
-          description: 'Recurso no encontrado',
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  success: {
-                    type: 'boolean',
-                    example: false
-                  },
-                  message: {
-                    type: 'string',
-                    example: 'Recurso no encontrado'
-                  }
-                }
-              }
-            }
-          }
-        },
-        ValidationError: {
-          description: 'Error de validación de datos',
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  success: {
-                    type: 'boolean',
-                    example: false
-                  },
-                  message: {
-                    type: 'string',
-                    example: 'Datos de entrada inválidos'
-                  },
-                  error: {
-                    type: 'string'
-                  }
-                }
-              }
             }
           }
         }
@@ -446,18 +163,29 @@ const options = {
       }
     ]
   },
-  apis: ['./routes/*.js', './swagger/*.js'], // Path to the API routes and swagger documentation
+  apis: [
+    './routes/*.js',
+    './swagger/*.js'
+  ]
 };
 
 const specs = swaggerJsdoc(options);
 
-module.exports = {
+const swaggerConfig = {
   serve: swaggerUi.serve,
   setup: swaggerUi.setup(specs, {
-    customCss: `
-      .swagger-ui .topbar { display: none }
-      .swagger-ui .info .title { color: #e8491d }
-    `,
-    customSiteTitle: "🛒 API Carrito de Compras"
-  }),
-}; 
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'Carrito de Compras API',
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      docExpansion: 'none',
+      filter: true,
+      showRequestHeaders: true,
+      supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
+      tryItOutEnabled: true,
+    },
+  })
+};
+
+export default swaggerConfig; 

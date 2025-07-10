@@ -1,11 +1,10 @@
-const User = require('../models/userModel');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const mongoose = require('mongoose');
+import { userService } from '../models/userModel.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
-const { sendVerificationEmail, sendPasswordResetEmail  } = require('../utils/mailer');
-const { validatePassword } = require('../utils/passwordValidator'); 
+import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/mailer.js';
+import { validatePassword } from '../utils/passwordValidator.js';
 
 // 📌 Registrar Usuario
 const registerUser = async (req, res) => {
@@ -24,7 +23,7 @@ const registerUser = async (req, res) => {
     }
 
     // Verificar si el usuario ya existe
-    const userExists = await User.findOne({ email });
+    const userExists = await userService.findByEmail(email);
     if (userExists) {
       return res.status(400).json({ error: "El usuario ya existe" });
     }
@@ -37,15 +36,13 @@ const registerUser = async (req, res) => {
     const verificationToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
     // Crear usuario
-    const newUser = new User({
+    const newUser = await userService.create({
       name,
       email,
       password: hashedPassword,
       isVerified: false,
       verificationToken
     });
-
-    await newUser.save();
 
     // Enviar correo de verificación
     await sendVerificationEmail(email, verificationToken);
@@ -54,10 +51,10 @@ const registerUser = async (req, res) => {
     res.status(201).json({
       message: "Usuario registrado exitosamente",
       user: {
-        _id: newUser._id,
+        id: newUser.id,
         name: newUser.name,
         email: newUser.email,
-        isVerified: newUser.isVerified
+        is_verified: newUser.is_verified
       }
     });
   } catch (error) {
@@ -77,13 +74,13 @@ const loginUser = async (req, res) => {
     }
 
     // Buscar usuario
-    const user = await User.findOne({ email });
+    const user = await userService.findByEmail(email);
     if (!user) {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
     // Verificar si la cuenta está verificada
-    if (!user.isVerified) {
+    if (!user.is_verified) {
       return res.status(401).json({ error: "Por favor verifica tu cuenta primero" });
     }
 
@@ -95,7 +92,7 @@ const loginUser = async (req, res) => {
 
     // Generar token JWT
     const token = jwt.sign(
-      { id: user._id, email: user.email },
+      { id: user.id, email: user.email },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
@@ -117,24 +114,26 @@ const updateUser = async (req, res) => {
     const userId = req.params.id;
 
     // Verificar si el usuario existe
-    const user = await User.findById(userId);
+    const user = await userService.findById(userId);
     if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
 
+    // Preparar datos para actualizar
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+
     // Si hay un nuevo password, encriptarlo
-    let hashedPassword = user.password;
     if (password) {
       const salt = await bcrypt.genSalt(10);
-      hashedPassword = await bcrypt.hash(password, salt);
+      updateData.password = await bcrypt.hash(password, salt);
     }
 
-    // Actualizar datos
-    user.name = name || user.name;
-    user.email = email || user.email;
-    user.password = hashedPassword;
-    await user.save();
+    // Actualizar usuario
+    await userService.update(userId, updateData);
 
     res.json({ message: "Usuario actualizado correctamente" });
   } catch (error) {
+    console.error("Error al actualizar usuario:", error);
     res.status(500).json({ error: "Error al actualizar usuario" });
   }
 };
@@ -146,18 +145,26 @@ const updateProfile = async (req, res) => {
     const userId = req.user.id; // Se obtiene del middleware de autenticación
 
     // Buscar el usuario por su ID
-    const user = await User.findById(userId);
+    const user = await userService.findById(userId);
     if (!user) {
       return res.status(404).json({ error: "Usuario no encontrado" });
     }
 
     // Validar que el nuevo email no esté en uso por otro usuario
     if (email && email !== user.email) {
-      const emailExists = await User.findOne({ email });
+      const emailExists = await userService.findByEmail(email);
       if (emailExists) {
         return res.status(400).json({ error: "El email ya está en uso por otro usuario" });
       }
     }
+
+    // Preparar datos para actualizar
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (telefono !== undefined) updateData.telefono = telefono;
+    if (fechaNacimiento !== undefined) updateData.fecha_nacimiento = fechaNacimiento;
+    if (direccion !== undefined) updateData.direccion = direccion;
 
     // Si hay una nueva contraseña, validarla y encriptarla
     if (password) {
@@ -167,31 +174,25 @@ const updateProfile = async (req, res) => {
       }
 
       const salt = await bcrypt.genSalt(10);
-      user.password = await bcrypt.hash(password, salt);
+      updateData.password = await bcrypt.hash(password, salt);
     }
 
-    // Actualizar los campos proporcionados
-    if (name) user.name = name;
-    if (email) user.email = email;
-    if (telefono !== undefined) user.telefono = telefono;
-    if (fechaNacimiento !== undefined) user.fechaNacimiento = fechaNacimiento;
-    if (direccion !== undefined) user.direccion = direccion;
-
-    await user.save();
+    // Actualizar usuario
+    const updatedUser = await userService.update(userId, updateData);
 
     // Devolver respuesta exitosa con los datos actualizados (sin contraseña)
     res.json({
       success: true,
       message: "Perfil actualizado exitosamente",
       data: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        telefono: user.telefono,
-        fechaNacimiento: user.fechaNacimiento,
-        direccion: user.direccion,
-        avatar: user.avatar
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        telefono: updatedUser.telefono,
+        fecha_nacimiento: updatedUser.fecha_nacimiento,
+        direccion: updatedUser.direccion,
+        avatar: updatedUser.avatar
       }
     });
   } catch (error) {
@@ -209,7 +210,7 @@ const verifyUser = async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Buscar usuario con el email del token
-    const user = await User.findOne({ email: decoded.email });
+    const user = await userService.findByEmail(decoded.email);
 
     if (!user) {
       return res.status(400).send(`
@@ -236,7 +237,7 @@ const verifyUser = async (req, res) => {
       `);
     }
 
-    if (user.isVerified) {
+    if (user.is_verified) {
       return res.status(200).send(`
         <html>
           <head>
@@ -262,9 +263,10 @@ const verifyUser = async (req, res) => {
     }
 
     // Marcar la cuenta como verificada
-    user.isVerified = true;
-    user.verificationToken = undefined; // Eliminamos el token de la BD
-    await user.save();
+    await userService.update(user.id, { 
+      is_verified: true, 
+      verification_token: null 
+    });
 
     // Página de éxito con redirección automática
     res.status(200).send(`
@@ -337,7 +339,7 @@ const verifyUser = async (req, res) => {
 const requestPasswordReset = async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email });
+    const user = await userService.findByEmail(email);
 
     if (!user) {
       return res.status(400).json({ error: "No existe una cuenta con este correo." });
@@ -371,7 +373,7 @@ const resetPassword = async (req, res) => {
     }
 
     // Buscar usuario por email
-    const user = await User.findOne({ email: decoded.email });
+    const user = await userService.findByEmail(decoded.email);
     if (!user) {
       return res.status(400).json({ error: "Usuario no encontrado." });
     }
@@ -384,9 +386,10 @@ const resetPassword = async (req, res) => {
 
     // Encriptar la nueva contraseña
     const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-    await user.save();
+    // Actualizar contraseña
+    await userService.update(user.id, { password: hashedPassword });
 
     res.json({ message: "Contraseña restablecida con éxito. Ya puedes iniciar sesión." });
   } catch (error) {
@@ -408,7 +411,7 @@ const deleteUser = async (req, res) => {
     }
 
     // Buscar al usuario por email
-    const user = await User.findOne({ email });
+    const user = await userService.findByEmail(email);
     if (!user) {
       return res.status(404).json({ error: "Usuario no encontrado" });
     }
@@ -420,7 +423,7 @@ const deleteUser = async (req, res) => {
     }
 
     // Eliminar usuario
-    await User.deleteOne({ email });
+    await userService.delete(user.id);
 
     console.log("✅ Usuario eliminado correctamente:", email);
     res.status(200).json({ message: "Usuario eliminado con éxito" });
@@ -436,15 +439,15 @@ const getUserData = async (req, res) => {
   try {
     const { identifier } = req.params; // Puede ser ID o email
 
-    // Intentar buscar por ID primero
+    // Intentar buscar por ID primero (verificar si es un número)
     let user = null;
-    if (mongoose.Types.ObjectId.isValid(identifier)) {
-      user = await User.findById(identifier).select('-password -verificationToken');
+    if (!isNaN(identifier)) {
+      user = await userService.findById(identifier);
     }
 
     // Si no se encuentra por ID, buscar por email
     if (!user) {
-      user = await User.findOne({ email: identifier }).select('-password -verificationToken');
+      user = await userService.findByEmail(identifier);
     }
 
     if (!user) {
@@ -452,17 +455,30 @@ const getUserData = async (req, res) => {
     }
 
     // Devolver los datos del usuario (sin la contraseña y el token de verificación)
-    res.json(user);
+    const userResponse = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      is_verified: user.is_verified,
+      avatar: user.avatar,
+      telefono: user.telefono,
+      fecha_nacimiento: user.fecha_nacimiento,
+      direccion: user.direccion
+    };
+
+    res.json(userResponse);
   } catch (error) {
     console.error("❌ Error al obtener los datos del usuario:", error);
     res.status(500).json({ error: "Error al obtener los datos del usuario" });
   }
 };
 
+// 📌 Subir avatar
 const uploadAvatar = async (req, res) => {
   try {
     const userId = req.user.id; // Se obtiene del middleware de autenticación
-    const user = await User.findById(userId);
+    const user = await userService.findById(userId);
 
     if (!user) {
       return res.status(404).json({ error: "Usuario no encontrado" });
@@ -474,15 +490,25 @@ const uploadAvatar = async (req, res) => {
     }
 
     // Guardar la URL del avatar en la base de datos
-    user.avatar = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-    await user.save();
+    const avatarUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    await userService.update(userId, { avatar: avatarUrl });
 
-    res.json({ message: "Foto de perfil actualizada", avatar: user.avatar });
+    res.json({ message: "Foto de perfil actualizada", avatar: avatarUrl });
   } catch (error) {
     console.error("❌ Error al actualizar la foto de perfil:", error);
     res.status(500).json({ error: "Error al actualizar la foto de perfil" });
   }
 };
 
-
-module.exports = { registerUser, loginUser, updateUser, updateProfile, verifyUser, requestPasswordReset, resetPassword, deleteUser, getUserData, uploadAvatar };
+export { 
+  registerUser, 
+  loginUser, 
+  updateUser, 
+  updateProfile, 
+  verifyUser, 
+  requestPasswordReset, 
+  resetPassword, 
+  deleteUser, 
+  getUserData, 
+  uploadAvatar 
+};

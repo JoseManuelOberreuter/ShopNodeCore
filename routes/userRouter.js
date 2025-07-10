@@ -1,7 +1,18 @@
-const express = require('express');
-const authMiddleware = require('../middlewares/authMiddleware');
-const upload = require('../middlewares/avatarMiddleware');
-const { registerUser, loginUser, updateUser, updateProfile, verifyUser, requestPasswordReset, resetPassword, getUserData, uploadAvatar} = require('../controllers/userController');
+import express from 'express';
+import authMiddleware from '../middlewares/authMiddleware.js';
+import upload from '../middlewares/avatarMiddleware.js';
+import { 
+  registerUser, 
+  loginUser, 
+  updateUser, 
+  updateProfile, 
+  verifyUser, 
+  requestPasswordReset, 
+  resetPassword, 
+  getUserData, 
+  uploadAvatar 
+} from '../controllers/userController.js';
+
 const router = express.Router();
 
 // Ruta para registrar un usuario
@@ -28,4 +39,4 @@ router.get('/profile/:identifier', authMiddleware, getUserData);
 // Ruta para subir la foto de perfil 
 router.post('/upload-avatar', authMiddleware, upload.single('avatar'), uploadAvatar);
 
-module.exports = router;
+export default router;

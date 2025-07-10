@@ -1,2 +1,4 @@
 // Alias para el middleware de autenticación
-module.exports = require('./authMiddleware'); 
+import authMiddleware from './authMiddleware.js';
+
+export default authMiddleware; 

@@ -1,17 +1,19 @@
 // Carga variables de entorno
-require('dotenv').config();
+import dotenv from 'dotenv';
+dotenv.config();
 
-const express = require('express');
-const cors = require('cors');
-const fs = require('fs');
-const swagger = require('./swagger/swagger');
+import express from 'express';
+import cors from 'cors';
+import fs from 'fs';
+import swaggerConfig from './swagger/swagger.js';
+
 const app = express();
 
 // Rutas del sistema de carrito de compras
-const userRoutes = require('./routes/userRouter');
-const productRoutes = require('./routes/productRoutes');
-const cartRoutes = require('./routes/cartRoutes');
-const orderRoutes = require('./routes/orderRoutes');
+import userRoutes from './routes/userRouter.js';
+import productRoutes from './routes/productRoutes.js';
+import cartRoutes from './routes/cartRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
 
 // 📁 Crear carpetas necesarias si no existen
 const ensureDirectories = () => {
@@ -36,7 +38,7 @@ app.use(cors({
 app.use(express.json());
 
 // Swagger documentation
-app.use('/api-docs', swagger.serve, swagger.setup);
+app.use('/api-docs', swaggerConfig.serve, swaggerConfig.setup);
 
 // Rutas del sistema
 app.use('/users', userRoutes);
@@ -76,4 +78,4 @@ app.get('/', (req, res) => {
   });
 });
 
-module.exports = app;
+export default app;

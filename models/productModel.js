@@ -1,53 +1,118 @@
-const mongoose = require('mongoose');
+import { supabase } from '../database.js';
 
-const productSchema = new mongoose.Schema({
-  name: { 
-    type: String, 
-    required: true,
-    trim: true 
+export const productService = {
+  // Crear producto
+  async create(productData) {
+    const { data, error } = await supabase
+      .from('products')
+      .insert([{
+        name: productData.name,
+        description: productData.description,
+        price: productData.price,
+        stock: productData.stock || 0,
+        image: productData.image || '',
+        category: productData.category,
+        is_active: productData.isActive !== undefined ? productData.isActive : true
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   },
-  description: { 
-    type: String, 
-    required: true 
+
+  // Buscar producto por ID
+  async findById(id) {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .eq('is_active', true)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
   },
-  price: { 
-    type: Number, 
-    required: true,
-    min: 0 
+
+  // Buscar productos activos
+  async findActive() {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data;
   },
-  stock: { 
-    type: Number, 
-    required: true,
-    min: 0,
-    default: 0 
+
+  // Buscar productos por categoría
+  async findByCategory(category) {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('category', category)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data;
   },
-  image: { 
-    type: String, 
-    default: "" 
+
+  // Actualizar producto
+  async update(id, updateData) {
+    const { data, error } = await supabase
+      .from('products')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   },
-  category: { 
-    type: String, 
-    required: true,
-    trim: true 
+
+  // Eliminar producto (soft delete)
+  async delete(id) {
+    const { data, error } = await supabase
+      .from('products')
+      .update({ is_active: false })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   },
-  isActive: { 
-    type: Boolean, 
-    default: true 
-  },
-  createdAt: { 
-    type: Date, 
-    default: Date.now 
-  },
-  updatedAt: { 
-    type: Date, 
-    default: Date.now 
+
+  // Buscar productos con filtros
+  async findWithFilters(filters = {}) {
+    let query = supabase
+      .from('products')
+      .select('*')
+      .eq('is_active', true);
+
+    if (filters.category) {
+      query = query.eq('category', filters.category);
+    }
+
+    if (filters.minPrice) {
+      query = query.gte('price', filters.minPrice);
+    }
+
+    if (filters.maxPrice) {
+      query = query.lte('price', filters.maxPrice);
+    }
+
+    if (filters.search) {
+      query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data;
   }
-});
+};
 
-// Middleware para actualizar updatedAt antes de guardar
-productSchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
-  next();
-});
-
-module.exports = mongoose.model('Product', productSchema); 
+export default productService; 

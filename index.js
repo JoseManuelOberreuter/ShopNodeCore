@@ -1,6 +1,8 @@
-require('dotenv').config(); // Cargar variables de entorno
-const connectDB = require('./database'); // Importar conexión a MongoDB
-const app = require('./server'); // Importa la configuración del servidor
+import dotenv from 'dotenv';
+dotenv.config(); // Cargar variables de entorno
+
+import connectDB from './database.js';
+import app from './server.js'; // Importa la configuración del servidor
 
 const PORT = process.env.PORT || 4005;
 

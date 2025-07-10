@@ -1,6 +1,5 @@
-const express = require('express');
-const router = express.Router();
-const {
+import express from 'express';
+import {
   createOrder,
   getUserOrders,
   getOrderById,
@@ -8,11 +7,13 @@ const {
   getAllOrders,
   updateOrderStatus,
   getOrderStats
-} = require('../controllers/orderController');
+} from '../controllers/orderController.js';
 
 // Importar middlewares
-const auth = require('../middlewares/auth');
-const authAdmin = require('../middlewares/authAdmin');
+import auth from '../middlewares/auth.js';
+import authAdmin from '../middlewares/authAdmin.js';
+
+const router = express.Router();
 
 /**
  * @swagger
@@ -207,9 +208,7 @@ router.get('/admin/stats', auth, authAdmin, getOrderStats);
  *               status:
  *                 type: string
  *                 enum: [pending, confirmed, processing, shipped, delivered, cancelled]
- *               notes:
- *                 type: string
  */
 router.patch('/admin/:orderId/status', auth, authAdmin, updateOrderStatus);
 
-module.exports = router; 
+export default router; 

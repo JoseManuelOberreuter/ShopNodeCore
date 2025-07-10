@@ -1,6 +1,5 @@
-const express = require('express');
-const router = express.Router();
-const {
+import express from 'express';
+import {
   getAllProducts,
   getProductById,
   createProduct,
@@ -10,11 +9,13 @@ const {
   updateStock,
   getAllProductsAdmin,
   upload
-} = require('../controllers/productController');
+} from '../controllers/productController.js';
 
 // Importar middlewares
-const auth = require('../middlewares/auth');
-const authAdmin = require('../middlewares/authAdmin');
+import auth from '../middlewares/auth.js';
+import authAdmin from '../middlewares/authAdmin.js';
+
+const router = express.Router();
 
 /**
  * @swagger
@@ -208,7 +209,7 @@ router.delete('/:id', auth, authAdmin, deleteProduct);
  * @swagger
  * /api/products/{id}/stock:
  *   patch:
- *     summary: Actualizar stock del producto (Solo Admin)
+ *     summary: Actualizar stock de producto (Solo Admin)
  *     tags: [Products]
  *     security:
  *       - bearerAuth: []
@@ -218,7 +219,17 @@ router.delete('/:id', auth, authAdmin, deleteProduct);
  *         required: true
  *         schema:
  *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               stock:
+ *                 type: integer
+ *                 minimum: 0
  */
 router.patch('/:id/stock', auth, authAdmin, updateStock);
 
-module.exports = router; 
+export default router; 

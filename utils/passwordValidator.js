@@ -37,5 +37,5 @@ const validatePassword = (password) => {
     return { isValid: true, message: "Contraseña válida." };
   };
   
-  module.exports = { validatePassword };
+export { validatePassword };
   

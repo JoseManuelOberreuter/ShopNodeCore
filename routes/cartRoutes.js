@@ -1,6 +1,5 @@
-const express = require('express');
-const router = express.Router();
-const {
+import express from 'express';
+import {
   getCart,
   addToCart,
   updateCartItem,
@@ -8,10 +7,12 @@ const {
   clearCart,
   getCartSummary,
   syncLocalCart
-} = require('../controllers/cartController');
+} from '../controllers/cartController.js';
 
 // Importar middleware
-const auth = require('../middlewares/auth');
+import auth from '../middlewares/auth.js';
+
+const router = express.Router();
 
 /**
  * @swagger
@@ -156,4 +157,4 @@ router.delete('/remove/:productId', auth, removeFromCart);
  */
 router.delete('/clear', auth, clearCart);
 
-module.exports = router; 
+export default router; 

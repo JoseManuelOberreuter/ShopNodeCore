@@ -1,5 +1,5 @@
-const jwt = require("jsonwebtoken");
-const User = require("../models/userModel");
+import jwt from 'jsonwebtoken';
+import { userService } from '../models/userModel.js';
 
 const authMiddleware = async (req, res, next) => {
   try {
@@ -13,19 +13,19 @@ const authMiddleware = async (req, res, next) => {
     const decoded = jwt.verify(token.replace("Bearer ", ""), process.env.JWT_SECRET);
 
     // Buscar usuario completo en la base de datos
-    const user = await User.findById(decoded.id).select('-password');
+    const user = await userService.findById(decoded.id);
     if (!user) {
       return res.status(401).json({ error: "Token inválido. Usuario no encontrado." });
     }
 
     // Guardar la información completa del usuario en `req.user`
     req.user = {
-      id: user._id,
-      _id: user._id, // Mantener retrocompatibilidad
+      id: user.id,
+      _id: user.id, // Mantener retrocompatibilidad
       name: user.name,
       email: user.email,
       role: user.role,
-      isVerified: user.isVerified
+      isVerified: user.is_verified
     };
 
     next(); // Continuar con la ejecución de la ruta
@@ -35,4 +35,4 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
-module.exports = authMiddleware;
+export default authMiddleware;
