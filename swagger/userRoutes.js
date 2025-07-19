@@ -217,6 +217,62 @@
  *       500:
  *         description: Error del servidor
  * 
+ * /users/resend-verification:
+ *   post:
+ *     summary: Reenviar correo de verificación
+ *     description: Reenvía un nuevo correo de verificación a un usuario que aún no ha verificado su cuenta
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Correo electrónico del usuario que solicita reenvío
+ *                 example: "juan@example.com"
+ *     responses:
+ *       200:
+ *         description: Correo de verificación reenviado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Correo de verificación reenviado exitosamente. Revisa tu bandeja de entrada."
+ *       400:
+ *         description: Email requerido o cuenta ya verificada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "La cuenta ya está verificada"
+ *       404:
+ *         description: Usuario no encontrado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Usuario no encontrado"
+ *       500:
+ *         description: Error del servidor
+ * 
  * /users/reset-password-request:
  *   post:
  *     summary: Solicitar recuperación de contraseña

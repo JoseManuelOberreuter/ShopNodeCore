@@ -7,6 +7,7 @@ import {
   updateUser, 
   updateProfile, 
   verifyUser, 
+  resendVerificationEmail,
   requestPasswordReset, 
   resetPassword, 
   getUserData, 
@@ -23,6 +24,9 @@ router.post('/login', loginUser);
 
 // Ruta para verificar la cuenta con el token
 router.get('/verify/:token', verifyUser);
+
+// Ruta para reenviar correo de verificación
+router.post('/resend-verification', resendVerificationEmail);
 
 // Ruta para solicitar cambio de contraseña
 router.post('/reset-password-request', requestPasswordReset);

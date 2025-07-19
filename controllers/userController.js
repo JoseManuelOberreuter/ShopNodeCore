@@ -63,6 +63,46 @@ const registerUser = async (req, res) => {
   }
 };
 
+// 📌 Reenviar correo de verificación
+const resendVerificationEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Validar que se proporcione el email
+    if (!email) {
+      return res.status(400).json({ error: "El email es requerido" });
+    }
+
+    // Buscar usuario por email
+    const user = await userService.findByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Verificar si la cuenta ya está verificada
+    if (user.is_verified) {
+      return res.status(400).json({ error: "La cuenta ya está verificada" });
+    }
+
+    // Generar nuevo token de verificación
+    const verificationToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+    // Actualizar el token en la base de datos
+    await userService.update(user.id, { verification_token: verificationToken });
+
+    // Enviar correo de verificación
+    await sendVerificationEmail(email, verificationToken);
+
+    res.json({ 
+      success: true, 
+      message: "Correo de verificación reenviado exitosamente. Revisa tu bandeja de entrada." 
+    });
+  } catch (error) {
+    console.error("❌ Error al reenviar correo de verificación:", error);
+    res.status(500).json({ error: "Error al reenviar el correo de verificación" });
+  }
+};
+
 // 📌 Iniciar Sesión
 const loginUser = async (req, res) => {
   try {
@@ -79,15 +119,27 @@ const loginUser = async (req, res) => {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
-    // Verificar si la cuenta está verificada
-    if (!user.is_verified) {
-      return res.status(401).json({ error: "Por favor verifica tu cuenta primero" });
-    }
-
     // Verificar contraseña
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ error: "Credenciales inválidas" });
+    }
+
+    // Verificar si la cuenta está verificada
+    if (!user.is_verified) {
+      // Generar nuevo token de verificación
+      const verificationToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+      
+      // Actualizar el token en la base de datos
+      await userService.update(user.id, { verification_token: verificationToken });
+      
+      // Enviar correo de verificación automáticamente
+      await sendVerificationEmail(email, verificationToken);
+      
+      return res.status(401).json({ 
+        error: "Por favor verifica tu cuenta primero. Se ha reenviado un nuevo correo de verificación.",
+        verificationSent: true
+      });
     }
 
     // Generar token JWT
@@ -220,18 +272,107 @@ const verifyUser = async (req, res) => {
             <title>Error de Verificación - ShopNodeCore</title>
             <style>
               body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
-              .error { background: #ffe6e6; color: #d63031; padding: 20px; border-radius: 10px; }
-              .btn { display: inline-block; padding: 12px 24px; background: #0984e3; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+              .error { background: #ffe6e6; color: #d63031; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+              .info { background: #e6f3ff; color: #0984e3; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+              .btn { display: inline-block; padding: 12px 24px; background: #0984e3; color: white; text-decoration: none; border-radius: 5px; margin: 10px; }
+              .btn-success { background: #00b894; }
+              .btn-secondary { background: #636e72; }
+              .form-group { margin: 15px 0; }
+              input[type="email"] { 
+                width: 100%; 
+                padding: 12px; 
+                border: 1px solid #ddd; 
+                border-radius: 5px; 
+                font-size: 16px; 
+                margin-bottom: 10px; 
+              }
+              .hidden { display: none; }
+              .loading { opacity: 0.6; pointer-events: none; }
             </style>
           </head>
           <body>
             <h1>🛒 ShopNodeCore</h1>
+            
             <div class="error">
               <h2>❌ Error de Verificación</h2>
               <p>Token inválido o usuario no encontrado.</p>
-              <p>Por favor, intenta registrarte nuevamente.</p>
+              <p>Si ya te registraste, puedes solicitar un nuevo correo de verificación.</p>
             </div>
-            <a href="http://localhost:5173" class="btn">Volver al Inicio</a>
+
+            <div class="info">
+              <h3>📧 Solicitar Correo de Verificación</h3>
+              <p>Si ya tienes una cuenta, ingresa tu correo para recibir un nuevo enlace de verificación:</p>
+              
+              <form id="resendForm">
+                <div class="form-group">
+                  <input type="email" id="emailInput" placeholder="tu@email.com" required>
+                </div>
+                <button type="submit" class="btn btn-success" id="resendBtn">
+                  📧 Solicitar Correo de Verificación
+                </button>
+              </form>
+              
+              <div id="message" class="hidden"></div>
+            </div>
+
+            <a href="http://localhost:5173" class="btn btn-secondary">Volver al Inicio</a>
+
+            <script>
+              document.getElementById('resendForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const email = document.getElementById('emailInput').value;
+                const resendBtn = document.getElementById('resendBtn');
+                const messageDiv = document.getElementById('message');
+                
+                if (!email) {
+                  showMessage('Por favor ingresa tu correo electrónico.', 'error');
+                  return;
+                }
+                
+                // Mostrar estado de carga
+                resendBtn.textContent = '⏳ Enviando...';
+                resendBtn.classList.add('loading');
+                
+                try {
+                  const response = await fetch('/api/users/resend-verification', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email: email })
+                  });
+                  
+                  const data = await response.json();
+                  
+                  if (response.ok) {
+                    showMessage('✅ ' + data.message, 'success');
+                    resendBtn.textContent = '📧 Correo Enviado';
+                    resendBtn.disabled = true;
+                  } else {
+                    showMessage('❌ ' + (data.error || 'Error al enviar el correo'), 'error');
+                    resendBtn.textContent = '📧 Solicitar Correo de Verificación';
+                  }
+                } catch (error) {
+                  showMessage('❌ Error de conexión. Por favor intenta nuevamente.', 'error');
+                  resendBtn.textContent = '📧 Solicitar Correo de Verificación';
+                } finally {
+                  resendBtn.classList.remove('loading');
+                }
+              });
+              
+              function showMessage(text, type) {
+                const messageDiv = document.getElementById('message');
+                messageDiv.textContent = text;
+                messageDiv.className = type === 'success' ? 'info' : 'error';
+                messageDiv.classList.remove('hidden');
+                
+                // Ocultar mensaje después de 5 segundos
+                setTimeout(() => {
+                  messageDiv.classList.add('hidden');
+                }, 5000);
+              }
+            </script>
           </body>
         </html>
       `);
@@ -317,18 +458,107 @@ const verifyUser = async (req, res) => {
           <title>Token Expirado - ShopNodeCore</title>
           <style>
             body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; text-align: center; }
-            .error { background: #ffe6e6; color: #d63031; padding: 20px; border-radius: 10px; }
-            .btn { display: inline-block; padding: 12px 24px; background: #0984e3; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+            .error { background: #ffe6e6; color: #d63031; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+            .info { background: #e6f3ff; color: #0984e3; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+            .btn { display: inline-block; padding: 12px 24px; background: #0984e3; color: white; text-decoration: none; border-radius: 5px; margin: 10px; }
+            .btn-success { background: #00b894; }
+            .btn-secondary { background: #636e72; }
+            .form-group { margin: 15px 0; }
+            input[type="email"] { 
+              width: 100%; 
+              padding: 12px; 
+              border: 1px solid #ddd; 
+              border-radius: 5px; 
+              font-size: 16px; 
+              margin-bottom: 10px; 
+            }
+            .hidden { display: none; }
+            .loading { opacity: 0.6; pointer-events: none; }
           </style>
         </head>
         <body>
           <h1>🛒 ShopNodeCore</h1>
+          
           <div class="error">
             <h2>⏰ Token Expirado</h2>
             <p>El enlace de verificación ha expirado.</p>
-            <p>Por favor, intenta registrarte nuevamente para obtener un nuevo enlace.</p>
+            <p>No te preocupes, puedes obtener un nuevo enlace de verificación.</p>
           </div>
-          <a href="http://localhost:5173" class="btn">Registrarse Nuevamente</a>
+
+          <div class="info">
+            <h3>📧 Reenviar Correo de Verificación</h3>
+            <p>Ingresa tu correo electrónico para recibir un nuevo enlace de verificación:</p>
+            
+            <form id="resendForm">
+              <div class="form-group">
+                <input type="email" id="emailInput" placeholder="tu@email.com" required>
+              </div>
+              <button type="submit" class="btn btn-success" id="resendBtn">
+                📧 Reenviar Correo de Verificación
+              </button>
+            </form>
+            
+            <div id="message" class="hidden"></div>
+          </div>
+
+          <a href="http://localhost:5173" class="btn btn-secondary">Volver al Inicio</a>
+
+          <script>
+            document.getElementById('resendForm').addEventListener('submit', async function(e) {
+              e.preventDefault();
+              
+              const email = document.getElementById('emailInput').value;
+              const resendBtn = document.getElementById('resendBtn');
+              const messageDiv = document.getElementById('message');
+              
+              if (!email) {
+                showMessage('Por favor ingresa tu correo electrónico.', 'error');
+                return;
+              }
+              
+              // Mostrar estado de carga
+              resendBtn.textContent = '⏳ Enviando...';
+              resendBtn.classList.add('loading');
+              
+              try {
+                const response = await fetch('/api/users/resend-verification', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ email: email })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                  showMessage('✅ ' + data.message, 'success');
+                  resendBtn.textContent = '📧 Correo Enviado';
+                  resendBtn.disabled = true;
+                } else {
+                  showMessage('❌ ' + (data.error || 'Error al enviar el correo'), 'error');
+                  resendBtn.textContent = '📧 Reenviar Correo de Verificación';
+                }
+              } catch (error) {
+                showMessage('❌ Error de conexión. Por favor intenta nuevamente.', 'error');
+                resendBtn.textContent = '📧 Reenviar Correo de Verificación';
+              } finally {
+                resendBtn.classList.remove('loading');
+              }
+            });
+            
+            function showMessage(text, type) {
+              const messageDiv = document.getElementById('message');
+              messageDiv.textContent = text;
+              messageDiv.className = type === 'success' ? 'info' : 'error';
+              messageDiv.classList.remove('hidden');
+              
+              // Ocultar mensaje después de 5 segundos
+              setTimeout(() => {
+                messageDiv.classList.add('hidden');
+              }, 5000);
+            }
+          </script>
         </body>
       </html>
     `);
@@ -506,6 +736,7 @@ export {
   updateUser, 
   updateProfile, 
   verifyUser, 
+  resendVerificationEmail,
   requestPasswordReset, 
   resetPassword, 
   deleteUser, 
