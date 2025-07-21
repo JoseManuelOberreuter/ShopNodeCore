@@ -6,7 +6,6 @@ import {
   removeFromCart,
   clearCart,
   getCartSummary,
-  syncLocalCart
 } from '../controllers/cartController.js';
 
 // Importar middleware
@@ -19,8 +18,6 @@ const router = express.Router();
 router.get('/', auth, getCart);
 
 router.get('/summary', auth, getCartSummary);
-
-router.post('/sync', auth, syncLocalCart);
 
 router.post('/add', auth, addToCart);
 

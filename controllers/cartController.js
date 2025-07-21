@@ -22,7 +22,3 @@ export const clearCart = async (req, res) => {
 export const getCartSummary = async (req, res) => {
   res.json({ message: 'getCartSummary - En desarrollo' });
 };
-
-export const syncLocalCart = async (req, res) => {
-  res.json({ message: 'syncLocalCart - En desarrollo' });
-}; 
