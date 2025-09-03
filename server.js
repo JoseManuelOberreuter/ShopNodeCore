@@ -14,6 +14,7 @@ import userRoutes from './routes/userRouter.js';
 import productRoutes from './routes/productRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
 
 // 📁 Crear carpetas necesarias si no existen
 const ensureDirectories = () => {
@@ -45,6 +46,7 @@ app.use('/users', userRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Servir archivos estáticos (imágenes de productos)
 app.use('/uploads', express.static('uploads'));

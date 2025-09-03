@@ -11,19 +11,20 @@ const options = {
       title: 'Sistema de Carrito de Compras - API REST',
       version: '2.0.0',
       description: `
-        Sistema completo de carrito de compras con gestión de usuarios, productos, carritos y órdenes.
+        Sistema completo de carrito de compras con gestión de usuarios, productos, carritos, órdenes y pagos con Transbank.
         
         Características principales:
         - 🔐 Autenticación JWT con roles de usuario
         - 📦 Gestión completa de productos
         - 🛒 Sistema de carrito de compras
         - 📋 Procesamiento de órdenes
+        - 💳 Integración con Transbank Webpay Plus
         - 📊 Panel de administración
         - 📁 Subida de imágenes de productos
         
         Roles de usuario:
-        - Usuario normal: Puede ver productos, gestionar su carrito y crear órdenes
-        - Administrador: Todas las funciones de usuario + gestión de productos y órdenes
+        - Usuario normal: Puede ver productos, gestionar su carrito, crear órdenes y procesar pagos
+        - Administrador: Todas las funciones de usuario + gestión de productos, órdenes y anulaciones
       `,
       contact: {
         name: 'Sistema de Carrito de Compras',
@@ -60,6 +61,10 @@ const options = {
       {
         name: 'Orders',
         description: 'Gestión de órdenes y compras'
+      },
+      {
+        name: 'Payments',
+        description: 'Procesamiento de pagos con Transbank Webpay Plus'
       },
       {
         name: 'Admin',
@@ -152,6 +157,207 @@ const options = {
               type: 'string',
               format: 'date-time',
               description: 'Fecha de última actualización'
+            }
+          }
+        },
+        Order: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: 'ID único de la orden'
+            },
+            user_id: {
+              type: 'string',
+              description: 'ID del usuario que realizó la orden'
+            },
+            order_number: {
+              type: 'string',
+              description: 'Número único de la orden'
+            },
+            total_amount: {
+              type: 'number',
+              format: 'float',
+              description: 'Monto total de la orden'
+            },
+            status: {
+              type: 'string',
+              enum: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'],
+              description: 'Estado de la orden'
+            },
+            payment_method: {
+              type: 'string',
+              enum: ['webpay', 'cash_on_delivery'],
+              description: 'Método de pago'
+            },
+            payment_status: {
+              type: 'string',
+              enum: ['pending', 'paid', 'failed', 'refunded'],
+              description: 'Estado del pago'
+            },
+            transbank_token: {
+              type: 'string',
+              description: 'Token de la transacción de Transbank'
+            },
+            transbank_status: {
+              type: 'string',
+              description: 'Estado de la transacción en Transbank'
+            },
+            shipping_street: {
+              type: 'string',
+              description: 'Dirección de envío'
+            },
+            shipping_city: {
+              type: 'string',
+              description: 'Ciudad de envío'
+            },
+            shipping_state: {
+              type: 'string',
+              description: 'Estado/región de envío'
+            },
+            shipping_zip_code: {
+              type: 'string',
+              description: 'Código postal de envío'
+            },
+            shipping_country: {
+              type: 'string',
+              description: 'País de envío'
+            },
+            created_at: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Fecha de creación'
+            },
+            updated_at: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Fecha de última actualización'
+            }
+          }
+        },
+        Cart: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: 'ID único del carrito'
+            },
+            user_id: {
+              type: 'string',
+              description: 'ID del usuario propietario del carrito'
+            },
+            cart_items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: {
+                    type: 'string',
+                    description: 'ID del item del carrito'
+                  },
+                  product_id: {
+                    type: 'string',
+                    description: 'ID del producto'
+                  },
+                  quantity: {
+                    type: 'integer',
+                    description: 'Cantidad del producto'
+                  },
+                  price: {
+                    type: 'number',
+                    format: 'float',
+                    description: 'Precio del producto'
+                  },
+                  products: {
+                    type: 'object',
+                    description: 'Información del producto'
+                  }
+                }
+              }
+            },
+            created_at: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Fecha de creación'
+            },
+            updated_at: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Fecha de última actualización'
+            }
+          }
+        }
+      },
+      responses: {
+        UnauthorizedError: {
+          description: 'Token de acceso requerido o inválido',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  error: {
+                    type: 'string',
+                    example: 'Acceso denegado. No hay token.'
+                  }
+                }
+              }
+            }
+          }
+        },
+        ForbiddenError: {
+          description: 'Acceso denegado - Se requieren permisos de administrador',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  error: {
+                    type: 'string',
+                    example: 'Acceso denegado. Se requieren permisos de administrador.'
+                  }
+                }
+              }
+            }
+          }
+        },
+        NotFoundError: {
+          description: 'Recurso no encontrado',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: {
+                    type: 'boolean',
+                    example: false
+                  },
+                  message: {
+                    type: 'string',
+                    example: 'Recurso no encontrado'
+                  }
+                }
+              }
+            }
+          }
+        },
+        ValidationError: {
+          description: 'Error de validación en los datos enviados',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: {
+                    type: 'boolean',
+                    example: false
+                  },
+                  message: {
+                    type: 'string',
+                    example: 'Datos inválidos'
+                  }
+                }
+              }
             }
           }
         }
