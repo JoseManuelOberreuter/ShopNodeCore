@@ -146,7 +146,7 @@ export const orderService = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data || []; // Devolver array vacío si no hay datos
   },
 
   // Actualizar estado de orden
@@ -192,7 +192,7 @@ export const orderService = {
     if (error) throw error;
     return data;
   },
-
+  
   // Buscar todas las órdenes
   async findAll() {
     const { data, error } = await supabase
@@ -209,6 +209,19 @@ export const orderService = {
         )
       `)
       .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || []; // Devolver array vacío si no hay datos
+  },
+
+  // Actualizar notas de orden
+  async updateNotes(orderId, notes) {
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ notes })
+      .eq('id', orderId)
+      .select()
+      .single();
 
     if (error) throw error;
     return data;

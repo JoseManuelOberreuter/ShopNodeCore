@@ -34,6 +34,17 @@ export const productService = {
     return data;
   },
 
+  // Buscar todos los productos
+  async findAll() {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
   // Buscar productos activos
   async findActive() {
     const { data, error } = await supabase
@@ -43,7 +54,7 @@ export const productService = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data || [];
   },
 
   // Buscar productos por categoría
@@ -111,7 +122,7 @@ export const productService = {
     const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data || [];
   }
 };
 

@@ -9,12 +9,6 @@
  *       properties:
  *         shippingAddress:
  *           $ref: '#/components/schemas/ShippingAddress'
- *         paymentMethod:
- *           type: string
- *           enum: [credit_card, debit_card, paypal, cash_on_delivery]
- *           default: cash_on_delivery
- *           description: Método de pago preferido
- *           example: "cash_on_delivery"
  *         notes:
  *           type: string
  *           description: Notas adicionales para la orden
@@ -42,26 +36,43 @@
  *         data:
  *           type: object
  *           properties:
+ *             period:
+ *               type: string
+ *               example: "30d"
+ *             summary:
+ *               type: object
+ *               properties:
+ *                 totalOrders:
+ *                   type: integer
+ *                   description: Total de órdenes
+ *                 totalRevenue:
+ *                   type: number
+ *                   description: Ingresos totales
+ *                 averageOrderValue:
+ *                   type: number
+ *                   description: Valor promedio de orden
+ *                 conversionRate:
+ *                   type: number
+ *                   description: Tasa de conversión de pago
  *             ordersByStatus:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   _id:
- *                     type: string
- *                     description: Estado de la orden
- *                   count:
- *                     type: integer
- *                     description: Número de órdenes en este estado
- *                   totalAmount:
- *                     type: number
- *                     description: Monto total de órdenes en este estado
- *             totalOrders:
- *               type: integer
- *               description: Total de órdenes
- *             totalRevenue:
- *               type: number
- *               description: Ingresos totales
+ *               type: object
+ *               additionalProperties:
+ *                 type: integer
+ *               description: Conteo de órdenes por estado
+ *             ordersByPaymentStatus:
+ *               type: object
+ *               additionalProperties:
+ *                 type: integer
+ *               description: Conteo de órdenes por estado de pago
+ *             dateRange:
+ *               type: object
+ *               properties:
+ *                 start:
+ *                   type: string
+ *                   format: date-time
+ *                 end:
+ *                   type: string
+ *                   format: date-time
  *
  *     UpdateOrderStatusRequest:
  *       type: object
@@ -123,6 +134,70 @@
  *                 message:
  *                   type: string
  *                   example: "El carrito está vacío"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ */
+
+/**
+ * @swagger
+ * /api/orders/test:
+ *   post:
+ *     summary: Crear orden de prueba para desarrollo
+ *     description: Crea una orden de prueba usando productos existentes para desarrollo y testing
+ *     tags: [Orders, Development]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       201:
+ *         description: Orden de prueba creada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Orden de prueba creada exitosamente"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     orderId:
+ *                       type: string
+ *                       example: "123e4567-e89b-12d3-a456-426614174000"
+ *                     orderNumber:
+ *                       type: string
+ *                       example: "ORD-1703123456789-ABC12"
+ *                     totalAmount:
+ *                       type: number
+ *                       example: 1599.98
+ *                     status:
+ *                       type: string
+ *                       example: "confirmed"
+ *                     paymentStatus:
+ *                       type: string
+ *                       example: "paid"
+ *                     itemsCount:
+ *                       type: integer
+ *                       example: 3
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         description: No hay productos disponibles
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "No hay productos disponibles para crear una orden de prueba"
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  */
@@ -283,33 +358,16 @@
  *           enum: [pending, confirmed, processing, shipped, delivered, cancelled]
  *         description: Filtrar por estado
  *       - in: query
- *         name: startDate
+ *         name: paymentStatus
  *         schema:
  *           type: string
- *           format: date
- *         description: Fecha de inicio para filtrar (YYYY-MM-DD)
- *         example: "2024-01-01"
+ *           enum: [pending, paid, failed, refunded]
+ *         description: Filtrar por estado de pago
  *       - in: query
- *         name: endDate
+ *         name: userId
  *         schema:
  *           type: string
- *           format: date
- *         description: Fecha de fin para filtrar (YYYY-MM-DD)
- *         example: "2024-12-31"
- *       - in: query
- *         name: sortBy
- *         schema:
- *           type: string
- *           enum: [createdAt, totalAmount, status]
- *           default: createdAt
- *         description: Campo para ordenar
- *       - in: query
- *         name: sortOrder
- *         schema:
- *           type: string
- *           enum: [asc, desc]
- *           default: desc
- *         description: Orden ascendente o descendente
+ *         description: Filtrar por ID de usuario específico
  *     responses:
  *       200:
  *         description: Órdenes obtenidas exitosamente
@@ -334,19 +392,13 @@
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
- *         name: startDate
+ *         name: period
  *         schema:
  *           type: string
- *           format: date
- *         description: Fecha de inicio para el período de estadísticas
- *         example: "2024-01-01"
- *       - in: query
- *         name: endDate
- *         schema:
- *           type: string
- *           format: date
- *         description: Fecha de fin para el período de estadísticas
- *         example: "2024-12-31"
+ *           enum: [7d, 30d, 90d, 1y]
+ *           default: 30d
+ *         description: Período de tiempo para las estadísticas
+ *         example: "30d"
  *     responses:
  *       200:
  *         description: Estadísticas obtenidas exitosamente

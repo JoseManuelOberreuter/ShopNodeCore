@@ -6,31 +6,42 @@ import {
   cancelOrder,
   getAllOrders,
   updateOrderStatus,
-  getOrderStats
+  getOrderStats,
+  createTestOrder
 } from '../controllers/orderController.js';
 
 // Importar middlewares
-import auth from '../middlewares/auth.js';
+import authMiddleware from '../middlewares/authMiddleware.js';
 import authAdmin from '../middlewares/authAdmin.js';
 
 const router = express.Router();
 
 // 🔒 RUTAS PARA USUARIOS AUTENTICADOS
 
-router.post('/', auth, createOrder);
+// Crear nueva orden
+router.post('/', authMiddleware, createOrder);
 
-router.get('/my-orders', auth, getUserOrders);
+// Crear orden de prueba para desarrollo
+router.post('/test', authMiddleware, createTestOrder);
 
-router.get('/:orderId', auth, getOrderById);
+// Obtener órdenes del usuario
+router.get('/my-orders', authMiddleware, getUserOrders);
 
-router.patch('/:orderId/cancel', auth, cancelOrder);
+// Obtener orden específica por ID
+router.get('/:orderId', authMiddleware, getOrderById);
+
+// Cancelar orden
+router.patch('/:orderId/cancel', authMiddleware, cancelOrder);
 
 // 🔒 RUTAS PARA ADMINISTRADORES
 
-router.get('/admin/all', auth, authAdmin, getAllOrders);
+// Obtener todas las órdenes (Admin)
+router.get('/admin/all', authMiddleware, authAdmin, getAllOrders);
 
-router.get('/admin/stats', auth, authAdmin, getOrderStats);
+// Obtener estadísticas de órdenes (Admin)
+router.get('/admin/stats', authMiddleware, authAdmin, getOrderStats);
 
-router.patch('/admin/:orderId/status', auth, authAdmin, updateOrderStatus);
+// Actualizar estado de orden (Admin)
+router.patch('/admin/:orderId/status', authMiddleware, authAdmin, updateOrderStatus);
 
 export default router; 

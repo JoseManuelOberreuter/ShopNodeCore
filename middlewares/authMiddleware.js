@@ -25,7 +25,8 @@ const authMiddleware = async (req, res, next) => {
       name: user.name,
       email: user.email,
       role: user.role,
-      isVerified: user.is_verified
+      isVerified: user.is_verified,
+      isAdmin: user.role === 'admin' // Agregar propiedad isAdmin para compatibilidad
     };
 
     next(); // Continuar con la ejecución de la ruta

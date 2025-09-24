@@ -69,6 +69,10 @@ const options = {
       {
         name: 'Admin',
         description: 'Funciones administrativas (solo administradores)'
+      },
+      {
+        name: 'Development',
+        description: 'Endpoints de desarrollo y testing'
       }
     ],
     components: {
@@ -182,7 +186,7 @@ const options = {
             },
             status: {
               type: 'string',
-              enum: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'],
+              enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
               description: 'Estado de la orden'
             },
             payment_method: {
@@ -223,6 +227,10 @@ const options = {
               type: 'string',
               description: 'País de envío'
             },
+            notes: {
+              type: 'string',
+              description: 'Notas adicionales de la orden'
+            },
             created_at: {
               type: 'string',
               format: 'date-time',
@@ -232,6 +240,93 @@ const options = {
               type: 'string',
               format: 'date-time',
               description: 'Fecha de última actualización'
+            }
+          }
+        },
+        ShippingAddress: {
+          type: 'object',
+          required: ['street', 'city', 'state', 'zipCode', 'country'],
+          properties: {
+            street: {
+              type: 'string',
+              description: 'Dirección de la calle',
+              example: 'Av. Principal 123'
+            },
+            city: {
+              type: 'string',
+              description: 'Ciudad',
+              example: 'Santiago'
+            },
+            state: {
+              type: 'string',
+              description: 'Estado o región',
+              example: 'Metropolitana'
+            },
+            zipCode: {
+              type: 'string',
+              description: 'Código postal',
+              example: '7500000'
+            },
+            country: {
+              type: 'string',
+              description: 'País',
+              example: 'Chile'
+            }
+          }
+        },
+        OrderItem: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: 'ID del item de la orden'
+            },
+            product_id: {
+              type: 'string',
+              description: 'ID del producto'
+            },
+            product_name: {
+              type: 'string',
+              description: 'Nombre del producto'
+            },
+            quantity: {
+              type: 'integer',
+              description: 'Cantidad del producto'
+            },
+            price: {
+              type: 'number',
+              format: 'float',
+              description: 'Precio unitario del producto'
+            },
+            subtotal: {
+              type: 'number',
+              format: 'float',
+              description: 'Subtotal del item (precio × cantidad)'
+            }
+          }
+        },
+        PaginationInfo: {
+          type: 'object',
+          properties: {
+            currentPage: {
+              type: 'integer',
+              description: 'Página actual'
+            },
+            totalPages: {
+              type: 'integer',
+              description: 'Total de páginas'
+            },
+            totalOrders: {
+              type: 'integer',
+              description: 'Total de órdenes'
+            },
+            hasNextPage: {
+              type: 'boolean',
+              description: 'Si hay página siguiente'
+            },
+            hasPrevPage: {
+              type: 'boolean',
+              description: 'Si hay página anterior'
             }
           }
         },
