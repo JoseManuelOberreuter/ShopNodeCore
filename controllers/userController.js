@@ -142,6 +142,9 @@ const loginUser = async (req, res) => {
       });
     }
 
+    // Actualizar último login
+    await userService.updateLastLogin(user.id);
+
     // Generar token JWT
     const token = jwt.sign(
       { id: user.id, email: user.email },
@@ -694,7 +697,9 @@ const getUserData = async (req, res) => {
       avatar: user.avatar,
       telefono: user.telefono,
       fecha_nacimiento: user.fecha_nacimiento,
-      direccion: user.direccion
+      direccion: user.direccion,
+      created_at: user.created_at,
+      last_login: user.last_login
     };
 
     res.json(userResponse);
@@ -730,6 +735,43 @@ const uploadAvatar = async (req, res) => {
   }
 };
 
+// 📌 Obtener todos los usuarios (Solo para administradores)
+const getAllUsers = async (req, res) => {
+  try {
+    // Obtener todos los usuarios de la base de datos
+    const users = await userService.findAll();
+
+    // Filtrar información sensible y formatear respuesta
+    const usersData = users.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      is_verified: user.is_verified,
+      avatar: user.avatar,
+      telefono: user.telefono,
+      fecha_nacimiento: user.fecha_nacimiento,
+      direccion: user.direccion,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+      last_login: user.last_login
+    }));
+
+    res.json({
+      success: true,
+      message: "Lista de usuarios obtenida exitosamente",
+      total: usersData.length,
+      data: usersData
+    });
+  } catch (error) {
+    console.error("❌ Error al obtener todos los usuarios:", error);
+    res.status(500).json({ 
+      success: false,
+      error: "Error interno del servidor al obtener los usuarios" 
+    });
+  }
+};
+
 export { 
   registerUser, 
   loginUser, 
@@ -741,5 +783,6 @@ export {
   resetPassword, 
   deleteUser, 
   getUserData, 
-  uploadAvatar 
+  uploadAvatar,
+  getAllUsers
 };

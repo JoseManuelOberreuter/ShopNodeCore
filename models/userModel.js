@@ -16,7 +16,9 @@ export const userService = {
         avatar: userData.avatar || '',
         telefono: userData.telefono || '',
         fecha_nacimiento: userData.fechaNacimiento,
-        direccion: userData.direccion || ''
+        direccion: userData.direccion || '',
+        last_login: null // Inicialmente null hasta el primer login
+        // created_at y updated_at se manejan automáticamente por Supabase
       }])
       .select()
       .single();
@@ -63,9 +65,15 @@ export const userService = {
 
   // Actualizar usuario
   async update(id, updateData) {
+    // Agregar updated_at automáticamente
+    const dataToUpdate = {
+      ...updateData,
+      updated_at: new Date().toISOString()
+    };
+
     const { data, error } = await supabase
       .from('users')
-      .update(updateData)
+      .update(dataToUpdate)
       .eq('id', id)
       .select()
       .single();
@@ -90,6 +98,22 @@ export const userService = {
     const { data, error } = await supabase
       .from('users')
       .select('*');
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Actualizar último login
+  async updateLastLogin(id) {
+    const { data, error } = await supabase
+      .from('users')
+      .update({ 
+        last_login: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) throw error;
     return data;

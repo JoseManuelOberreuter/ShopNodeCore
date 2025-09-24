@@ -443,4 +443,117 @@
  *         description: Usuario no encontrado
  *       500:
  *         description: Error del servidor
+ * 
+ * /users/all:
+ *   get:
+ *     summary: Obtener todos los usuarios (Solo administradores)
+ *     description: Obtiene la lista completa de todos los usuarios registrados en el sistema. Solo accesible para administradores.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de usuarios obtenida exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Lista de usuarios obtenida exitosamente"
+ *                 total:
+ *                   type: integer
+ *                   description: Número total de usuarios
+ *                   example: 25
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         description: ID único del usuario
+ *                       name:
+ *                         type: string
+ *                         description: Nombre del usuario
+ *                       email:
+ *                         type: string
+ *                         format: email
+ *                         description: Correo electrónico del usuario
+ *                       role:
+ *                         type: string
+ *                         enum: [user, admin]
+ *                         description: Rol del usuario
+ *                       is_verified:
+ *                         type: boolean
+ *                         description: Estado de verificación
+ *                       avatar:
+ *                         type: string
+ *                         description: URL del avatar del usuario
+ *                       telefono:
+ *                         type: string
+ *                         description: Número de teléfono
+ *                       fecha_nacimiento:
+ *                         type: string
+ *                         format: date
+ *                         description: Fecha de nacimiento
+ *                       direccion:
+ *                         type: string
+ *                         description: Dirección del usuario
+ *                       created_at:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Fecha de registro
+ *                       updated_at:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Fecha de última actualización
+ *                       last_login:
+ *                         type: string
+ *                         format: date-time
+ *                         description: Fecha del último inicio de sesión
+ *                         nullable: true
+ *       401:
+ *         description: Token de autenticación requerido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Token de autenticación requerido"
+ *       403:
+ *         description: Acceso denegado. Se requieren permisos de administrador
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Acceso denegado. Se requieren permisos de administrador"
+ *       500:
+ *         description: Error interno del servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   example: "Error interno del servidor al obtener los usuarios"
  */ 

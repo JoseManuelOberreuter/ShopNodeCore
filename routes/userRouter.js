@@ -1,5 +1,6 @@
 import express from 'express';
 import authMiddleware from '../middlewares/authMiddleware.js';
+import authAdmin from '../middlewares/authAdmin.js';
 import upload from '../middlewares/avatarMiddleware.js';
 import { 
   registerUser, 
@@ -11,7 +12,8 @@ import {
   requestPasswordReset, 
   resetPassword, 
   getUserData, 
-  uploadAvatar 
+  uploadAvatar,
+  getAllUsers
 } from '../controllers/userController.js';
 
 const router = express.Router();
@@ -42,5 +44,8 @@ router.get('/profile/:identifier', authMiddleware, getUserData);
 
 // Ruta para subir la foto de perfil 
 router.post('/upload-avatar', authMiddleware, upload.single('avatar'), uploadAvatar);
+
+// Ruta para obtener todos los usuarios (Solo para administradores)
+router.get('/all', authMiddleware, authAdmin, getAllUsers);
 
 export default router;
