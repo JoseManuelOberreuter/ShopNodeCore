@@ -24,6 +24,14 @@ connectDB().then(() => {
     console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
     console.log(`📚 Documentación Swagger disponible en: http://localhost:${PORT}/api-docs`);
     console.log(`📁 Sistema de Gestión de Documentos iniciado correctamente`);
+    
+    // Conditional Transbank environment message
+    const environment = process.env.TRANSBANK_ENVIRONMENT || 'integration';
+    if (environment === 'integration') {
+      console.log('💳 Usando credenciales de integración de Transbank');
+    } else {
+      console.log('💳 Usando credenciales de producción de Transbank');
+    }
   });
 }).catch(err => {
   console.error("❌ Error al conectar a la base de datos:", err);
