@@ -34,6 +34,18 @@ export const productService = {
     return data;
   },
 
+  // Buscar producto por ID sin filtrar por estado (útil para admin)
+  async findByIdAny(id) {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
+  },
+
   // Buscar todos los productos
   async findAll() {
     const { data, error } = await supabase

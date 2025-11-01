@@ -279,7 +279,9 @@ export const createProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, price, stock, category, isActive } = req.body;
+    
+    // Si viene FormData, los campos están en req.body pero pueden tener diferentes nombres
+    const { name, description, price, stock, category, isActive, is_active } = req.body;
 
     if (!id || isNaN(parseInt(id))) {
       return res.status(400).json({
@@ -290,8 +292,18 @@ export const updateProduct = async (req, res) => {
 
     const productId = parseInt(id);
 
-    // Verificar si el producto existe
-    const existingProduct = await productService.findById(productId);
+    // Buscar directamente sin usar findById (que filtra por is_active)
+    // O modificar findById para que no filtre
+    const { data: existingProduct, error: findError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', productId)
+      .maybeSingle();
+
+    if (findError) {
+      throw findError;
+    }
+
     if (!existingProduct) {
       return res.status(404).json({
         success: false,
@@ -305,10 +317,20 @@ export const updateProduct = async (req, res) => {
     if (name) updateData.name = name.trim();
     if (description) updateData.description = description.trim();
     if (category) updateData.category = category.trim();
-    if (isActive !== undefined) updateData.is_active = isActive === 'true';
+    
+    // Manejar tanto isActive (camelCase) como is_active (snake_case)
+    const isActiveValue = isActive !== undefined ? isActive : is_active;
+    if (isActiveValue !== undefined) {
+      // Convertir a boolean - manejar diferentes formatos
+      if (isActiveValue === 'true' || isActiveValue === true) {
+        updateData.is_active = true;
+      } else if (isActiveValue === 'false' || isActiveValue === false) {
+        updateData.is_active = false;
+      }
+    }
 
     // Validar y actualizar precio
-    if (price !== undefined && price !== '') {  // Solo validar si se envía un precio
+    if (price !== undefined && price !== '') {
       const priceFloat = parseFloat(price);
       if (isNaN(priceFloat) || priceFloat < 0) {
         return res.status(400).json({
@@ -320,7 +342,7 @@ export const updateProduct = async (req, res) => {
     }
 
     // Validar y actualizar stock
-    if (stock !== undefined && stock !== '') {  // Solo validar si se envía un stock
+    if (stock !== undefined && stock !== '') {
       const stockInt = parseInt(stock);
       if (isNaN(stockInt) || stockInt < 0) {
         return res.status(400).json({
@@ -329,6 +351,11 @@ export const updateProduct = async (req, res) => {
         });
       }
       updateData.stock = stockInt;
+      
+      // Si el stock llega a 0, desactivar el producto automáticamente
+      if (stockInt === 0) {
+        updateData.is_active = false;
+      }
     }
 
     // Procesar nueva imagen si se subió
@@ -364,28 +391,29 @@ export const updateProduct = async (req, res) => {
 export const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
-
+    
     if (!id || isNaN(parseInt(id))) {
       return res.status(400).json({
         success: false,
         message: 'ID de producto inválido'
       });
     }
-
+    
     const productId = parseInt(id);
-
+    
     // Verificar si el producto existe
     const existingProduct = await productService.findById(productId);
+    
     if (!existingProduct) {
       return res.status(404).json({
         success: false,
         message: 'Producto no encontrado'
       });
     }
-
+    
     // Eliminar producto (soft delete)
     await productService.delete(productId);
-
+    
     res.json({
       success: true,
       message: 'Producto eliminado exitosamente'
