@@ -5,6 +5,7 @@ import crypto from 'crypto';
 
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/mailer.js';
 import { validatePassword } from '../utils/passwordValidator.js';
+import logger from '../utils/logger.js';
 
 // 📌 Registrar Usuario
 const registerUser = async (req, res) => {
@@ -58,7 +59,7 @@ const registerUser = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Error en registerUser:", error);
+    logger.error("Error en registerUser:", { message: error.message });
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
@@ -98,7 +99,7 @@ const resendVerificationEmail = async (req, res) => {
       message: "Correo de verificación reenviado exitosamente. Revisa tu bandeja de entrada." 
     });
   } catch (error) {
-    console.error("❌ Error al reenviar correo de verificación:", error);
+    logger.error("Error al reenviar correo de verificación:", { message: error.message });
     res.status(500).json({ error: "Error al reenviar el correo de verificación" });
   }
 };
@@ -157,7 +158,7 @@ const loginUser = async (req, res) => {
       token
     });
   } catch (error) {
-    console.error("Error en loginUser:", error);
+    logger.error("Error en loginUser:", { message: error.message });
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
@@ -188,7 +189,7 @@ const updateUser = async (req, res) => {
 
     res.json({ message: "Usuario actualizado correctamente" });
   } catch (error) {
-    console.error("Error al actualizar usuario:", error);
+    logger.error("Error al actualizar usuario:", { message: error.message });
     res.status(500).json({ error: "Error al actualizar usuario" });
   }
 };
@@ -251,7 +252,7 @@ const updateProfile = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("❌ Error al actualizar perfil:", error);
+    logger.error("Error al actualizar perfil:", { message: error.message });
     res.status(500).json({ error: "Error al actualizar el perfil" });
   }
 };
@@ -451,9 +452,9 @@ const verifyUser = async (req, res) => {
       </html>
     `);
 
-    console.log(`✅ Cuenta verificada exitosamente: ${user.email}`);
+    logger.info("Cuenta verificada exitosamente", { userId: user.id });
   } catch (error) {
-    console.error("❌ Error al verificar cuenta:", error);
+    logger.error("Error al verificar cuenta:", { message: error.message });
     res.status(400).send(`
       <html>
         <head>
@@ -586,7 +587,7 @@ const requestPasswordReset = async (req, res) => {
 
     res.json({ message: "Correo de recuperación enviado. Revisa tu bandeja de entrada." });
   } catch (error) {
-    console.error("❌ Error en solicitud de recuperación:", error);
+    logger.error("Error en solicitud de recuperación:", { message: error.message });
     res.status(500).json({ error: "Error al solicitar la recuperación de contraseña." });
   }
 };
@@ -626,7 +627,7 @@ const resetPassword = async (req, res) => {
 
     res.json({ message: "Contraseña restablecida con éxito. Ya puedes iniciar sesión." });
   } catch (error) {
-    console.error("❌ Error al restablecer contraseña:", error);
+    logger.error("Error al restablecer contraseña:", { message: error.message });
     res.status(500).json({ error: "Error al restablecer la contraseña." });
   }
 };
@@ -634,7 +635,7 @@ const resetPassword = async (req, res) => {
 // 📌 Eliminar usuario
 const deleteUser = async (req, res) => {
   try {
-    console.log("Eliminando usuario:", req.params.id);
+    logger.info("Eliminando usuario", { userId: req.params.id });
     
     const { email, password, confirmacion } = req.body;
 
@@ -658,11 +659,11 @@ const deleteUser = async (req, res) => {
     // Eliminar usuario
     await userService.delete(user.id);
 
-    console.log("✅ Usuario eliminado correctamente:", email);
+    logger.info("Usuario eliminado correctamente", { userId: user.id });
     res.status(200).json({ message: "Usuario eliminado con éxito" });
 
   } catch (error) {
-    console.error("❌ Error al eliminar usuario:", error);
+    logger.error("Error al eliminar usuario:", { message: error.message });
     res.status(500).json({ error: "Error interno del servidor" });
   }
 };
@@ -704,7 +705,7 @@ const getUserData = async (req, res) => {
 
     res.json(userResponse);
   } catch (error) {
-    console.error("❌ Error al obtener los datos del usuario:", error);
+    logger.error("Error al obtener los datos del usuario:", { message: error.message });
     res.status(500).json({ error: "Error al obtener los datos del usuario" });
   }
 };
@@ -730,7 +731,7 @@ const uploadAvatar = async (req, res) => {
 
     res.json({ message: "Foto de perfil actualizada", avatar: avatarUrl });
   } catch (error) {
-    console.error("❌ Error al actualizar la foto de perfil:", error);
+    logger.error("Error al actualizar la foto de perfil:", { message: error.message });
     res.status(500).json({ error: "Error al actualizar la foto de perfil" });
   }
 };
@@ -738,8 +739,8 @@ const uploadAvatar = async (req, res) => {
 // 📌 Obtener todos los usuarios (Solo para administradores)
 const getAllUsers = async (req, res) => {
   try {
-    // Obtener todos los usuarios de la base de datos
-    const users = await userService.findAll();
+    // Obtener todos los usuarios de la base de datos (incluyendo eliminados)
+    const users = await userService.findAllIncludingDeleted();
 
     // Filtrar información sensible y formatear respuesta
     const usersData = users.map(user => ({
@@ -754,7 +755,9 @@ const getAllUsers = async (req, res) => {
       direccion: user.direccion,
       created_at: user.created_at,
       updated_at: user.updated_at,
-      last_login: user.last_login
+      last_login: user.last_login,
+      deleted_at: user.deleted_at,
+      is_active: user.is_active !== false && !user.deleted_at
     }));
 
     res.json({
@@ -764,10 +767,282 @@ const getAllUsers = async (req, res) => {
       data: usersData
     });
   } catch (error) {
-    console.error("❌ Error al obtener todos los usuarios:", error);
+    logger.error("Error al obtener todos los usuarios:", { message: error.message });
     res.status(500).json({ 
       success: false,
       error: "Error interno del servidor al obtener los usuarios" 
+    });
+  }
+};
+
+// 📌 Obtener usuario por ID (Solo para administradores)
+const getUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validar que se proporcione el ID
+    if (!id) {
+      return res.status(400).json({ 
+        success: false,
+        error: "ID de usuario requerido" 
+      });
+    }
+
+    // Buscar usuario por ID
+    const user = await userService.findById(id);
+
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        error: "Usuario no encontrado" 
+      });
+    }
+
+    // Devolver los datos del usuario (sin la contraseña y el token de verificación)
+    const userResponse = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      is_verified: user.is_verified,
+      avatar: user.avatar,
+      telefono: user.telefono,
+      fecha_nacimiento: user.fecha_nacimiento,
+      direccion: user.direccion,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+      last_login: user.last_login
+    };
+
+    res.json({
+      success: true,
+      message: "Usuario obtenido exitosamente",
+      data: userResponse
+    });
+  } catch (error) {
+    logger.error("Error al obtener el usuario:", { message: error.message });
+    res.status(500).json({ 
+      success: false,
+      error: "Error interno del servidor al obtener el usuario" 
+    });
+  }
+};
+
+// 📌 Actualizar usuario por administrador
+const updateUserByAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, password, role, is_verified, telefono, fecha_nacimiento, direccion } = req.body;
+
+    // Validar que se proporcione el ID
+    if (!id) {
+      return res.status(400).json({ 
+        success: false,
+        error: "ID de usuario requerido" 
+      });
+    }
+
+    // Verificar si el usuario existe
+    const user = await userService.findById(id);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        error: "Usuario no encontrado" 
+      });
+    }
+
+    // Preparar datos para actualizar
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) {
+      // Validar que el nuevo email no esté en uso por otro usuario
+      if (email !== user.email) {
+        const emailExists = await userService.findByEmail(email);
+        if (emailExists) {
+          return res.status(400).json({ 
+            success: false,
+            error: "El email ya está en uso por otro usuario" 
+          });
+        }
+        updateData.email = email;
+      }
+    }
+    if (role !== undefined) {
+      // Validar que el rol sea válido
+      if (!['user', 'admin'].includes(role)) {
+        return res.status(400).json({ 
+          success: false,
+          error: "El rol debe ser 'user' o 'admin'" 
+        });
+      }
+      updateData.role = role;
+    }
+    if (is_verified !== undefined) updateData.is_verified = is_verified;
+    if (telefono !== undefined) updateData.telefono = telefono;
+    if (fecha_nacimiento !== undefined) updateData.fecha_nacimiento = fecha_nacimiento;
+    if (direccion !== undefined) updateData.direccion = direccion;
+
+    // Si hay una nueva contraseña, validarla y encriptarla
+    if (password) {
+      const passwordValidation = validatePassword(password);
+      if (!passwordValidation.isValid) {
+        return res.status(400).json({ 
+          success: false,
+          error: passwordValidation.message 
+        });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      updateData.password = await bcrypt.hash(password, salt);
+    }
+
+    // Verificar que hay datos para actualizar
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        error: "No hay datos para actualizar" 
+      });
+    }
+
+    // Actualizar usuario
+    const updatedUser = await userService.update(id, updateData);
+
+    // Devolver respuesta exitosa con los datos actualizados (sin contraseña)
+    res.json({
+      success: true,
+      message: "Usuario actualizado exitosamente",
+      data: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        is_verified: updatedUser.is_verified,
+        telefono: updatedUser.telefono,
+        fecha_nacimiento: updatedUser.fecha_nacimiento,
+        direccion: updatedUser.direccion,
+        avatar: updatedUser.avatar,
+        updated_at: updatedUser.updated_at
+      }
+    });
+  } catch (error) {
+    logger.error("Error al actualizar usuario:", { message: error.message });
+    res.status(500).json({ 
+      success: false,
+      error: "Error interno del servidor al actualizar el usuario" 
+    });
+  }
+};
+
+// 📌 Eliminar usuario por administrador
+const deleteUserByAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validar que se proporcione el ID
+    if (!id) {
+      return res.status(400).json({ 
+        success: false,
+        error: "ID de usuario requerido" 
+      });
+    }
+
+    // Verificar si el usuario existe (incluyendo eliminados)
+    const user = await userService.findByIdAny(id);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        error: "Usuario no encontrado" 
+      });
+    }
+
+    // Verificar si el usuario ya está eliminado
+    if (user.deleted_at) {
+      return res.status(400).json({ 
+        success: false,
+        error: "El usuario ya está eliminado" 
+      });
+    }
+
+    // Prevenir que un administrador se elimine a sí mismo
+    if (req.user && req.user.id === id) {
+      return res.status(400).json({ 
+        success: false,
+        error: "No puedes eliminar tu propia cuenta" 
+      });
+    }
+
+    // Eliminar usuario (soft delete)
+    await userService.delete(id);
+
+    logger.info("Usuario eliminado por administrador (soft delete)", { userId: id });
+    res.json({
+      success: true,
+      message: "Usuario eliminado exitosamente"
+    });
+  } catch (error) {
+    logger.error("Error al eliminar usuario:", { message: error.message });
+    res.status(500).json({ 
+      success: false,
+      error: "Error interno del servidor al eliminar el usuario" 
+    });
+  }
+};
+
+// 📌 Restaurar usuario por administrador
+const restoreUserByAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validar que se proporcione el ID
+    if (!id) {
+      return res.status(400).json({ 
+        success: false,
+        error: "ID de usuario requerido" 
+      });
+    }
+
+    // Verificar si el usuario existe (incluyendo eliminados)
+    const user = await userService.findByIdAny(id);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        error: "Usuario no encontrado" 
+      });
+    }
+
+    // Verificar si el usuario está eliminado
+    if (!user.deleted_at) {
+      return res.status(400).json({ 
+        success: false,
+        error: "El usuario no está eliminado" 
+      });
+    }
+
+    // Restaurar usuario (restore soft delete)
+    const restoredUser = await userService.restore(id);
+
+    logger.info("Usuario restaurado por administrador", { userId: id });
+    res.json({
+      success: true,
+      message: "Usuario restaurado exitosamente",
+      data: {
+        id: restoredUser.id,
+        name: restoredUser.name,
+        email: restoredUser.email,
+        role: restoredUser.role,
+        is_verified: restoredUser.is_verified,
+        telefono: restoredUser.telefono,
+        fecha_nacimiento: restoredUser.fecha_nacimiento,
+        direccion: restoredUser.direccion,
+        avatar: restoredUser.avatar,
+        deleted_at: restoredUser.deleted_at
+      }
+    });
+  } catch (error) {
+    logger.error("Error al restaurar usuario:", { message: error.message });
+    res.status(500).json({ 
+      success: false,
+      error: "Error interno del servidor al restaurar el usuario" 
     });
   }
 };
@@ -784,5 +1059,9 @@ export {
   deleteUser, 
   getUserData, 
   uploadAvatar,
-  getAllUsers
+  getAllUsers,
+  getUserById,
+  updateUserByAdmin,
+  deleteUserByAdmin,
+  restoreUserByAdmin
 };

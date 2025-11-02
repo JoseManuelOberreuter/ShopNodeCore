@@ -13,7 +13,11 @@ import {
   resetPassword, 
   getUserData, 
   uploadAvatar,
-  getAllUsers
+  getAllUsers,
+  getUserById,
+  updateUserByAdmin,
+  deleteUserByAdmin,
+  restoreUserByAdmin
 } from '../controllers/userController.js';
 
 const router = express.Router();
@@ -45,7 +49,21 @@ router.get('/profile/:identifier', authMiddleware, getUserData);
 // Ruta para subir la foto de perfil 
 router.post('/upload-avatar', authMiddleware, upload.single('avatar'), uploadAvatar);
 
+// Rutas de administrador para gestión de usuarios
 // Ruta para obtener todos los usuarios (Solo para administradores)
 router.get('/all', authMiddleware, authAdmin, getAllUsers);
+
+// Ruta para obtener un usuario específico por ID (Solo para administradores)
+router.get('/:id', authMiddleware, authAdmin, getUserById);
+
+// Ruta para restaurar un usuario por ID (Solo para administradores)
+// Esta ruta debe ir antes de PUT /:id para evitar conflictos
+router.put('/:id/restore', authMiddleware, authAdmin, restoreUserByAdmin);
+
+// Ruta para actualizar un usuario por ID (Solo para administradores)
+router.put('/:id', authMiddleware, authAdmin, updateUserByAdmin);
+
+// Ruta para eliminar un usuario por ID (Solo para administradores)
+router.delete('/:id', authMiddleware, authAdmin, deleteUserByAdmin);
 
 export default router;

@@ -27,8 +27,21 @@ export const userService = {
     return data;
   },
 
-  // Buscar usuario por email
+  // Buscar usuario por email (excluye eliminados)
   async findByEmail(email) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .is('deleted_at', null)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
+  },
+
+  // Buscar usuario por email sin filtrar eliminados (útil para verificar unicidad)
+  async findByEmailAny(email) {
     const { data, error } = await supabase
       .from('users')
       .select('*')
@@ -39,8 +52,21 @@ export const userService = {
     return data;
   },
 
-  // Buscar usuario por ID
+  // Buscar usuario por ID (excluye eliminados)
   async findById(id) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
+  },
+
+  // Buscar usuario por ID sin filtrar eliminados (útil para admin)
+  async findByIdAny(id) {
     const { data, error } = await supabase
       .from('users')
       .select('*')
@@ -51,12 +77,13 @@ export const userService = {
     return data;
   },
 
-  // Buscar usuario por token de verificación
+  // Buscar usuario por token de verificación (excluye eliminados)
   async findByVerificationToken(token) {
     const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('verification_token', token)
+      .is('deleted_at', null)
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
@@ -82,22 +109,54 @@ export const userService = {
     return data;
   },
 
-  // Eliminar usuario
+  // Eliminar usuario (soft delete)
   async delete(id) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('users')
-      .delete()
-      .eq('id', id);
+      .update({ 
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) throw error;
-    return true;
+    return data;
   },
 
-  // Buscar todos los usuarios
+  // Buscar todos los usuarios (excluye eliminados)
   async findAll() {
     const { data, error } = await supabase
       .from('users')
+      .select('*')
+      .is('deleted_at', null);
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Buscar todos los usuarios incluyendo eliminados (útil para admin)
+  async findAllIncludingDeleted() {
+    const { data, error } = await supabase
+      .from('users')
       .select('*');
+
+    if (error) throw error;
+    return data;
+  },
+
+  // Restaurar usuario eliminado (soft delete)
+  async restore(id) {
+    const { data, error } = await supabase
+      .from('users')
+      .update({ 
+        deleted_at: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) throw error;
     return data;

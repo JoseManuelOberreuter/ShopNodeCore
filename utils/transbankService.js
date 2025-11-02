@@ -1,6 +1,7 @@
 import pkg from 'transbank-sdk';
 const { WebpayPlus, Options, IntegrationCommerceCodes, IntegrationApiKeys, Environment } = pkg;
 import dotenv from 'dotenv';
+import logger from './logger.js';
 
 dotenv.config();
 
@@ -24,7 +25,7 @@ if (environment === 'integration') {
 } else {
   // Para producción, usar las credenciales del .env
   if (!apiKey || !commerceCode) {
-    console.error('❌ Variables de entorno de Transbank no configuradas correctamente');
+    logger.error('Variables de entorno de Transbank no configuradas correctamente');
     throw new Error('Variables de entorno de Transbank requeridas para producción: TRANSBANK_API_KEY, TRANSBANK_COMMERCE_CODE');
   }
   
@@ -34,7 +35,7 @@ if (environment === 'integration') {
     Environment.Production
   );
   
-  console.log('🔧 Configuración de producción:', {
+  logger.info('Configuración de producción:', {
     apiKey: config.apiKey ? '✅ Configurado' : '❌ Faltante',
     commerceCode: config.commerceCode ? '✅ Configurado' : '❌ Faltante',
     environment: config.environment
@@ -47,14 +48,14 @@ export const transbankService = {
   // Crear transacción
   async createTransaction(amount, orderId, sessionId, returnUrl) {
     try {
-      console.log('💳 Creando transacción con parámetros:', {
+      logger.info('Creando transacción con parámetros:', {
         amount,
         orderId,
         sessionId,
         returnUrl
       });
 
-      console.log('🔍 Llamando a webpayPlus.create()...');
+      logger.debug('Llamando a webpayPlus.create()...');
       const response = await webpayPlus.create(
         orderId,
         sessionId,
@@ -62,9 +63,9 @@ export const transbankService = {
         returnUrl
       );
 
-      console.log('✅ Transacción creada exitosamente:', response);
-      console.log('🔍 URL devuelta por Transbank:', response.url);
-      console.log('🔍 Token devuelto por Transbank:', response.token);
+      logger.info('Transacción creada exitosamente', { orderId, sessionId });
+      logger.debug('URL devuelta por Transbank:', response.url);
+      logger.safe('Token devuelto por Transbank:', response.token);
       
       // Validar que la respuesta tenga la estructura esperada
       if (!response || !response.token || !response.url) {
@@ -73,24 +74,12 @@ export const transbankService = {
       
       return response;
     } catch (error) {
-      console.error('❌ Error creating Transbank transaction:', error);
-      console.error('❌ Error details:', {
+      logger.error('Error creating Transbank transaction:', {
         message: error.message,
-        stack: error.stack,
-        response: error.response?.data || 'No response data',
+        orderId,
         status: error.response?.status,
         statusText: error.response?.statusText
       });
-      
-      // Log adicional para debugging
-      if (error.response) {
-        console.error('❌ Response headers:', error.response.headers);
-        console.error('❌ Response config:', {
-          url: error.response.config?.url,
-          method: error.response.config?.method,
-          headers: error.response.config?.headers
-        });
-      }
       
       throw error;
     }
@@ -99,12 +88,12 @@ export const transbankService = {
   // Confirmar transacción
   async confirmTransaction(token) {
     try {
-      console.log('🔍 Confirmando transacción con token:', token);
+      logger.safe('Confirmando transacción con token:', token);
       const response = await webpayPlus.commit(token);
-      console.log('✅ Transacción confirmada:', response);
+      logger.info('Transacción confirmada');
       return response;
     } catch (error) {
-      console.error('❌ Error confirming Transbank transaction:', error);
+      logger.error('Error confirming Transbank transaction:', { message: error.message });
       throw error;
     }
   },
@@ -112,12 +101,12 @@ export const transbankService = {
   // Obtener estado de transacción
   async getTransactionStatus(token) {
     try {
-      console.log('📊 Obteniendo estado de transacción:', token);
+      logger.safe('Obteniendo estado de transacción:', token);
       const response = await webpayPlus.status(token);
-      console.log('✅ Estado obtenido:', response);
+      logger.debug('Estado obtenido');
       return response;
     } catch (error) {
-      console.error('❌ Error getting transaction status:', error);
+      logger.error('Error getting transaction status:', { message: error.message });
       throw error;
     }
   },
@@ -125,12 +114,12 @@ export const transbankService = {
   // Anular transacción
   async refundTransaction(token, amount) {
     try {
-      console.log('💰 Anulando transacción:', { token, amount });
+      logger.safe('Anulando transacción:', { token, amount });
       const response = await webpayPlus.refund(token, amount);
-      console.log('✅ Transacción anulada:', response);
+      logger.info('Transacción anulada', { amount });
       return response;
     } catch (error) {
-      console.error('❌ Error refunding transaction:', error);
+      logger.error('Error refunding transaction:', { message: error.message });
       throw error;
     }
   }

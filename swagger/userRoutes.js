@@ -556,4 +556,321 @@
  *                 error:
  *                   type: string
  *                   example: "Error interno del servidor al obtener los usuarios"
+ * 
+ * /users/upload-avatar:
+ *   post:
+ *     summary: Subir foto de perfil
+ *     description: Sube una imagen como foto de perfil del usuario autenticado
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - avatar
+ *             properties:
+ *               avatar:
+ *                 type: string
+ *                 format: binary
+ *                 description: Archivo de imagen para el avatar
+ *     responses:
+ *       200:
+ *         description: Avatar actualizado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Foto de perfil actualizada"
+ *                 avatar:
+ *                   type: string
+ *                   description: URL del avatar
+ *                   example: "http://localhost:3000/uploads/avatar-123456.jpg"
+ *       400:
+ *         description: No se proporcionó archivo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "No se ha subido ninguna imagen."
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       404:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error del servidor
+ * 
+ * /users/{id}:
+ *   get:
+ *     summary: Obtener usuario por ID (Solo administradores)
+ *     description: Obtiene la información completa de un usuario específico por su ID. Solo accesible para administradores.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID único del usuario
+ *     responses:
+ *       200:
+ *         description: Usuario obtenido exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Usuario obtenido exitosamente"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       description: ID único del usuario
+ *                     name:
+ *                       type: string
+ *                       description: Nombre del usuario
+ *                     email:
+ *                       type: string
+ *                       format: email
+ *                       description: Correo electrónico del usuario
+ *                     role:
+ *                       type: string
+ *                       enum: [user, admin]
+ *                       description: Rol del usuario
+ *                     is_verified:
+ *                       type: boolean
+ *                       description: Estado de verificación
+ *                     avatar:
+ *                       type: string
+ *                       description: URL del avatar del usuario
+ *                     telefono:
+ *                       type: string
+ *                       description: Número de teléfono
+ *                     fecha_nacimiento:
+ *                       type: string
+ *                       format: date
+ *                       description: Fecha de nacimiento
+ *                     direccion:
+ *                       type: string
+ *                       description: Dirección del usuario
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Fecha de registro
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Fecha de última actualización
+ *                     last_login:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Fecha del último inicio de sesión
+ *                       nullable: true
+ *       400:
+ *         description: ID de usuario requerido
+ *       401:
+ *         description: Token de autenticación requerido
+ *       403:
+ *         description: Acceso denegado. Se requieren permisos de administrador
+ *       404:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ * 
+ *   put:
+ *     summary: Actualizar usuario por ID (Solo administradores)
+ *     description: Permite a un administrador actualizar cualquier campo de un usuario específico. Solo accesible para administradores.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID único del usuario a actualizar
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Nombre del usuario
+ *                 example: "Juan Carlos Pérez"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Correo electrónico del usuario
+ *                 example: "juan.carlos@example.com"
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 description: Nueva contraseña (se validará automáticamente)
+ *                 example: "NewPassword123!"
+ *               role:
+ *                 type: string
+ *                 enum: [user, admin]
+ *                 description: Rol del usuario
+ *                 example: "user"
+ *               is_verified:
+ *                 type: boolean
+ *                 description: Estado de verificación de la cuenta
+ *                 example: true
+ *               telefono:
+ *                 type: string
+ *                 description: Número de teléfono
+ *                 example: "+56912345678"
+ *               fecha_nacimiento:
+ *                 type: string
+ *                 format: date
+ *                 description: Fecha de nacimiento
+ *                 example: "1990-01-15"
+ *               direccion:
+ *                 type: string
+ *                 description: Dirección del usuario
+ *                 example: "Av. Principal 123, Santiago"
+ *     responses:
+ *       200:
+ *         description: Usuario actualizado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Usuario actualizado exitosamente"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                     is_verified:
+ *                       type: boolean
+ *                     telefono:
+ *                       type: string
+ *                     fecha_nacimiento:
+ *                       type: string
+ *                     direccion:
+ *                       type: string
+ *                     avatar:
+ *                       type: string
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         description: Datos inválidos o error en la validación
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   example: "El email ya está en uso por otro usuario"
+ *       401:
+ *         description: Token de autenticación requerido
+ *       403:
+ *         description: Acceso denegado. Se requieren permisos de administrador
+ *       404:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error interno del servidor
+ * 
+ *   delete:
+ *     summary: Eliminar usuario por ID (Solo administradores - Soft Delete)
+ *     description: Elimina un usuario del sistema usando soft delete (marca deleted_at). El usuario no se elimina físicamente pero queda excluido de todas las consultas normales. Solo accesible para administradores.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID único del usuario a eliminar
+ *     responses:
+ *       200:
+ *         description: Usuario eliminado exitosamente (soft delete)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Usuario eliminado exitosamente"
+ *       400:
+ *         description: Error en la solicitud
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   examples:
+ *                     usuarioYaEliminado:
+ *                       value: "El usuario ya está eliminado"
+ *                     noPuedeEliminarse:
+ *                       value: "No puedes eliminar tu propia cuenta"
+ *       401:
+ *         description: Token de autenticación requerido
+ *       403:
+ *         description: Acceso denegado. Se requieren permisos de administrador
+ *       404:
+ *         description: Usuario no encontrado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: string
+ *                   example: "Usuario no encontrado"
+ *       500:
+ *         description: Error interno del servidor
  */ 

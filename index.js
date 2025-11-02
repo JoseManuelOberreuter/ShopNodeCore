@@ -3,10 +3,11 @@ dotenv.config(); // Cargar variables de entorno
 
 import connectDB from './database.js'; // Importa la conexión a la base de datos
 import app from './server.js'; // Importa la configuración del servidor
+import logger from './utils/logger.js';
 
 const PORT = process.env.PORT || 4005; // Puerto del servidor
 
-const startMessage = `                                                
+const startMessage = `
 
 ░██████╗██╗░░██╗░█████╗░██████╗░███╗░░██╗░█████╗░██████╗░███████╗░█████╗░░█████╗░██████╗░███████╗
 ██╔════╝██║░░██║██╔══██╗██╔══██╗████╗░██║██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔══██╗██╔════╝
@@ -16,24 +17,24 @@ const startMessage = `
 ╚═════╝░╚═╝░░╚═╝░╚════╝░╚═╝░░░░░╚═╝░░╚══╝░╚════╝░╚═════╝░╚══════╝░╚════╝░░╚════╝░╚═╝░░╚═╝╚══════╝
 `;
 
-console.log(startMessage);
+logger.info(startMessage);
 
 // Conectar a la base de datos antes de iniciar el servidor
 connectDB().then(() => {
   app.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-    console.log(`📚 Documentación Swagger disponible en: http://localhost:${PORT}/api-docs`);
-    console.log(`📁 Sistema de Gestión de Documentos iniciado correctamente`);
+    logger.info(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+    logger.info(`📚 Documentación Swagger disponible en: http://localhost:${PORT}/api-docs`);
+    logger.info(`📁 Sistema de Gestión de Documentos iniciado correctamente`);
     
-    // Conditional Transbank environment message
+    // Conditional Transbank environment message (safe to log)
     const environment = process.env.TRANSBANK_ENVIRONMENT || 'integration';
     if (environment === 'integration') {
-      console.log('💳 Usando credenciales de integración de Transbank');
+      logger.info('💳 Usando credenciales de integración de Transbank');
     } else {
-      console.log('💳 Usando credenciales de producción de Transbank');
+      logger.info('💳 Usando credenciales de producción de Transbank');
     }
   });
 }).catch(err => {
-  console.error("❌ Error al conectar a la base de datos:", err);
+  logger.error("Error al conectar a la base de datos:", err);
   process.exit(1); // Detiene la ejecución si la conexión falla
 });

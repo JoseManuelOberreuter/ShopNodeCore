@@ -4,8 +4,12 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import fs from 'fs';
 import swaggerConfig from './swagger/swagger.js';
+import logger from './utils/logger.js';
+import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 
 const app = express();
 
@@ -16,6 +20,8 @@ import cartRoutes from './routes/cartRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
 // 📁 Crear carpetas necesarias si no existen
 const ensureDirectories = () => {
   const directories = [
@@ -25,21 +31,79 @@ const ensureDirectories = () => {
   directories.forEach(dir => {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
-      console.log(`✅ Carpeta creada automáticamente: ${dir}`);
+      logger.info(`Carpeta creada automáticamente: ${dir}`);
     }
   });
 };
 ensureDirectories();
 
-// Middlewares globales
-app.use(cors({
-  origin: 'http://localhost:5173',
-  credentials: true
+// Security: Configure Helmet for security headers
+app.use(helmet({
+  contentSecurityPolicy: isDevelopment ? false : {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+  crossOriginEmbedderPolicy: !isDevelopment,
 }));
-app.use(express.json());
+
+// Security: Rate limiting - General limit for all routes
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: isDevelopment ? 1000 : 100, // Limit each IP to 100 requests per windowMs in production
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Security: Stricter rate limiting for authentication routes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: isDevelopment ? 100 : 5, // Limit to 5 requests per windowMs in production
+  message: 'Too many authentication attempts, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+});
+
+// Apply general rate limiting to all routes
+app.use(generalLimiter);
+
+// Security: CORS configuration
+const allowedOrigins = isDevelopment
+  ? ['http://localhost:5173', 'http://localhost:3000']
+  : process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || isDevelopment) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Swagger documentation
 app.use('/api-docs', swaggerConfig.serve, swaggerConfig.setup);
+
+// Apply stricter rate limiting to authentication routes
+app.use('/users/login', authLimiter);
+app.use('/users/register', authLimiter);
+app.use('/users/reset-password-request', authLimiter);
+app.use('/users/reset-password', authLimiter);
 
 // Rutas del sistema
 app.use('/users', userRoutes);
@@ -79,5 +143,9 @@ app.get('/', (req, res) => {
     }
   });
 });
+
+// Error handling middleware (must be last)
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 export default app;

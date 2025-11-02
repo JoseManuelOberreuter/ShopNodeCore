@@ -1,11 +1,12 @@
 import jwt from 'jsonwebtoken';
 import { userService } from '../models/userModel.js';
+import logger from '../utils/logger.js';
 
 const authMiddleware = async (req, res, next) => {
   try {
     const token = req.header("Authorization");
     if (!token) {
-      console.log("⛔ No hay token en la solicitud");
+      logger.warn("No hay token en la solicitud", { path: req.path, method: req.method });
       return res.status(401).json({ error: "Acceso denegado. No hay token." });
     }
 
@@ -15,6 +16,10 @@ const authMiddleware = async (req, res, next) => {
     // Buscar usuario completo en la base de datos
     const user = await userService.findById(decoded.id);
     if (!user) {
+      logger.warn("Token inválido - Usuario no encontrado", { 
+        userId: decoded.id,
+        path: req.path 
+      });
       return res.status(401).json({ error: "Token inválido. Usuario no encontrado." });
     }
 
@@ -31,7 +36,11 @@ const authMiddleware = async (req, res, next) => {
 
     next(); // Continuar con la ejecución de la ruta
   } catch (error) {
-    console.error("⛔ Error en la autenticación:", error);
+    logger.error("Error en la autenticación:", { 
+      message: error.message,
+      path: req.path,
+      method: req.method 
+    });
     return res.status(403).json({ error: "Token inválido o expirado." });
   }
 };
