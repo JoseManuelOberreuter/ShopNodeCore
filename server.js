@@ -22,8 +22,14 @@ import paymentRoutes from './routes/paymentRoutes.js';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
-// 📁 Crear carpetas necesarias si no existen
+// 📁 Crear carpetas necesarias si no existen (solo en desarrollo/local)
+// En serverless (Vercel) esto no es necesario ya que los archivos se guardan en Supabase Storage
 const ensureDirectories = () => {
+  // Skip en entornos serverless
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return;
+  }
+  
   const directories = [
     'uploads', 
     'uploads/products'
@@ -75,7 +81,13 @@ app.use(generalLimiter);
 // Security: CORS configuration
 const allowedOrigins = isDevelopment
   ? ['http://localhost:5173', 'http://localhost:3000']
-  : process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'];
+  : [
+      ...(process.env.ALLOWED_ORIGINS?.split(',') || []),
+      // Allow Vercel deployment URL if present
+      ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+      // Allow custom domain if configured
+      ...(process.env.VERCEL ? [] : ['http://localhost:5173'])
+    ];
 
 app.use(cors({
   origin: (origin, callback) => {

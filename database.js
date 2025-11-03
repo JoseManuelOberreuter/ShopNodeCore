@@ -6,14 +6,25 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = 'https://sjgwwuawpfnvhzfgknus.supabase.co'
 const supabaseKey = process.env.SUPABASE_KEY
 
+// Don't throw error on import - let it fail gracefully
+let supabase;
+
 if (!supabaseKey) {
-  throw new Error('SUPABASE_KEY is required')
+  console.error('⚠️ SUPABASE_KEY is not set - Supabase operations will fail');
+  // Create a dummy client to prevent crashes on import
+  supabase = createClient(supabaseUrl, '');
+} else {
+  supabase = createClient(supabaseUrl, supabaseKey);
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export { supabase };
 
 // Función para inicializar la conexión (opcional - para mantener compatibilidad con el código existente)
 const connectDB = async () => {
+  if (!supabaseKey) {
+    throw new Error('SUPABASE_KEY is required');
+  }
+
   try {
     // Supabase no necesita conexión explícita, pero podemos hacer una consulta de prueba
     const { data, error } = await supabase.from('users').select('count').limit(1)
@@ -23,7 +34,11 @@ const connectDB = async () => {
     console.log('✅ Conectado a Supabase');
   } catch (error) {
     console.error('❌ Error al conectar a Supabase:', error);
-    process.exit(1);
+    // Don't exit in serverless environments
+    if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      process.exit(1);
+    }
+    throw error; // Re-throw so caller can handle it
   }
 };
 
