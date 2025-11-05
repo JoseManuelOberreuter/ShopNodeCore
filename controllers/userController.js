@@ -714,31 +714,6 @@ const getUserData = async (req, res) => {
   }
 };
 
-// 📌 Subir avatar
-const uploadAvatar = async (req, res) => {
-  try {
-    const userId = req.user.id; // Se obtiene del middleware de autenticación
-    const user = await userService.findById(userId);
-
-    if (!user) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
-    } 
-
-    // Verificar si se subió un archivo
-    if (!req.file) {
-      return res.status(400).json({ error: "No se ha subido ninguna imagen." });
-    }
-
-    // Guardar la URL del avatar en la base de datos
-    const avatarUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-    await userService.update(userId, { avatar: avatarUrl });
-
-    res.json({ message: "Foto de perfil actualizada", avatar: avatarUrl });
-  } catch (error) {
-    logger.error("Error al actualizar la foto de perfil:", { message: error.message });
-    res.status(500).json({ error: "Error al actualizar la foto de perfil" });
-  }
-};
 
 // 📌 Obtener todos los usuarios (Solo para administradores)
 const getAllUsers = async (req, res) => {
@@ -1062,7 +1037,6 @@ export {
   resetPassword, 
   deleteUser, 
   getUserData, 
-  uploadAvatar,
   getAllUsers,
   getUserById,
   updateUserByAdmin,

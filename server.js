@@ -34,8 +34,6 @@ const ensureDirectories = () => {
   }
   
   const directories = [
-    'uploads', 
-    'uploads/products'
   ];
   directories.forEach(dir => {
     if (!fs.existsSync(dir)) {
@@ -145,8 +143,6 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 
-// Servir archivos estáticos (imágenes de productos)
-app.use('/uploads', express.static('uploads'));
 
 // Ruta principal
 app.get('/', (req, res) => {

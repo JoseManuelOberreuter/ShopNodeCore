@@ -1,7 +1,6 @@
 import express from 'express';
 import authMiddleware from '../middlewares/authMiddleware.js';
 import authAdmin from '../middlewares/authAdmin.js';
-import upload from '../middlewares/avatarMiddleware.js';
 import { 
   registerUser, 
   loginUser, 
@@ -12,7 +11,6 @@ import {
   requestPasswordReset, 
   resetPassword, 
   getUserData, 
-  uploadAvatar,
   getAllUsers,
   getUserById,
   updateUserByAdmin,
@@ -45,9 +43,6 @@ router.put('/profile', authMiddleware, updateProfile);
 
 // Ruta para traer los datos del usuario por ID o email
 router.get('/profile/:identifier', authMiddleware, getUserData);
-
-// Ruta para subir la foto de perfil 
-router.post('/upload-avatar', authMiddleware, upload.single('avatar'), uploadAvatar);
 
 // Rutas de administrador para gestión de usuarios
 // Ruta para obtener todos los usuarios (Solo para administradores)

@@ -557,58 +557,6 @@
  *                   type: string
  *                   example: "Error interno del servidor al obtener los usuarios"
  * 
- * /users/upload-avatar:
- *   post:
- *     summary: Subir foto de perfil
- *     description: Sube una imagen como foto de perfil del usuario autenticado
- *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             required:
- *               - avatar
- *             properties:
- *               avatar:
- *                 type: string
- *                 format: binary
- *                 description: Archivo de imagen para el avatar
- *     responses:
- *       200:
- *         description: Avatar actualizado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Foto de perfil actualizada"
- *                 avatar:
- *                   type: string
- *                   description: URL del avatar
- *                   example: "http://localhost:3000/uploads/avatar-123456.jpg"
- *       400:
- *         description: No se proporcionó archivo
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "No se ha subido ninguna imagen."
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       404:
- *         description: Usuario no encontrado
- *       500:
- *         description: Error del servidor
- * 
  * /users/{id}:
  *   get:
  *     summary: Obtener usuario por ID (Solo administradores)
