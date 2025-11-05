@@ -4,7 +4,17 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Verify required environment variables
+const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_KEY'];
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+  console.error('⚠️ Missing required environment variables:', missingVars.join(', '));
+  console.error('Please configure these in your Vercel project settings');
+}
+
 // Import database connection (Supabase client is created immediately on import)
+// This will create the supabase client even if variables are missing (database.js handles it gracefully)
 import '../database.js';
 
 // Import the Express app

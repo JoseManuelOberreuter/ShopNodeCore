@@ -244,11 +244,53 @@ curl -X POST http://localhost:4005/api/orders \
 
 ## 🚀 Despliegue
 
+### Desplegar en Vercel
+
+1. **Configurar el proyecto en Vercel**
+   - Conecta tu repositorio de GitHub con Vercel
+   - Selecciona el directorio `ShopNodeCore` como raíz del proyecto
+   - Vercel detectará automáticamente el archivo `vercel.json`
+
+2. **Configurar Variables de Entorno en Vercel**
+   
+   Ve a tu proyecto en Vercel → Settings → Environment Variables y agrega las siguientes variables:
+
+   **Variables OBLIGATORIAS:**
+   ```env
+   SUPABASE_URL=https://tu-proyecto.supabase.co
+   SUPABASE_KEY=tu_supabase_key_anon
+   JWT_SECRET=tu_jwt_secret_muy_seguro_y_largo
+   FRONTEND_URL=https://tu-frontend.vercel.app
+   ```
+
+   **Variables OPCIONALES (recomendadas):**
+   ```env
+   NODE_ENV=production
+   ALLOWED_ORIGINS=https://tu-frontend.vercel.app,https://otro-dominio.com
+   EMAIL_USER=tu_email@gmail.com
+   EMAIL_PASS=tu_password_de_aplicacion
+   TRANSBANK_API_KEY=tu_api_key
+   TRANSBANK_ENVIRONMENT=production
+   TRANSBANK_COMMERCE_CODE=tu_commerce_code
+   ```
+
+3. **Redeploy después de agregar variables**
+   - Después de agregar las variables de entorno, ve a Deployments
+   - Haz clic en los 3 puntos del último deployment
+   - Selecciona "Redeploy"
+
+4. **Verificar el despliegue**
+   - Visita tu URL de Vercel (ej: `https://shop-node-core.vercel.app`)
+   - Deberías ver un JSON con información de la API
+   - Si ves un error 500, revisa los logs en Vercel → Deployments → Ver logs
+
 ### Variables de Entorno para Producción
 ```env
 NODE_ENV=production
-MONGO_URI=mongodb+srv://usuario:password@cluster.mongodb.net/carrito_compras
+SUPABASE_URL=https://tu-proyecto.supabase.co
+SUPABASE_KEY=tu_supabase_key
 JWT_SECRET=jwt_secret_super_seguro_para_produccion
+FRONTEND_URL=https://tu-frontend.vercel.app
 PORT=4005
 ```
 
