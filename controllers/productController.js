@@ -4,6 +4,7 @@ import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import dotenv from 'dotenv';
+import logger from '../utils/logger.js';
 
 dotenv.config();
 
@@ -52,7 +53,7 @@ const uploadImageToSupabase = async (file) => {
     return publicData.publicUrl;
     
   } catch (error) {
-    console.error('Error en uploadImageToSupabase:', error);
+    logger.error('Error en uploadImageToSupabase:', { message: error.message });
     throw error;
   }
 };
@@ -71,11 +72,11 @@ const deleteImageFromSupabase = async (imageUrl) => {
       .remove([fileName]);
 
     if (error) {
-      console.error('Error eliminando imagen:', error.message);
+      logger.error('Error eliminando imagen:', { message: error.message });
     }
     
   } catch (error) {
-    console.error('Error eliminando imagen:', error);
+    logger.error('Error eliminando imagen:', { message: error.message });
   }
 };
 
@@ -166,7 +167,7 @@ export const getAllProducts = async (req, res) => {
       filters: filters
     });
   } catch (error) {
-    console.error('Error obteniendo productos:', error);
+    logger.error('Error obteniendo productos:', { message: error.message });
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
@@ -201,7 +202,7 @@ export const getProductById = async (req, res) => {
       data: product
     });
   } catch (error) {
-    console.error('Error obteniendo producto:', error);
+    logger.error('Error obteniendo producto:', { message: error.message });
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
@@ -266,7 +267,7 @@ export const createProduct = async (req, res) => {
       data: newProduct
     });
   } catch (error) {
-    console.error('Error creando producto:', error);
+    logger.error('Error creando producto:', { message: error.message });
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
@@ -378,7 +379,7 @@ export const updateProduct = async (req, res) => {
       data: updatedProduct
     });
   } catch (error) {
-    console.error('Error actualizando producto:', error);
+    logger.error('Error actualizando producto:', { message: error.message });
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
@@ -419,7 +420,7 @@ export const deleteProduct = async (req, res) => {
       message: 'Producto eliminado exitosamente'
     });
   } catch (error) {
-    console.error('Error eliminando producto:', error);
+    logger.error('Error eliminando producto:', { message: error.message });
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
@@ -446,7 +447,7 @@ export const getCategories = async (req, res) => {
       data: categories
     });
   } catch (error) {
-    console.error('Error obteniendo categorías:', error);
+    logger.error('Error obteniendo categorías:', { message: error.message });
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
@@ -512,7 +513,7 @@ export const updateStock = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error actualizando stock:', error);
+    logger.error('Error actualizando stock:', { message: error.message });
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
@@ -614,7 +615,7 @@ export const getAllProductsAdmin = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error obteniendo productos admin:', error);
+    logger.error('Error obteniendo productos admin:', { message: error.message });
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',

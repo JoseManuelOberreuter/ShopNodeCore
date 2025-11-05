@@ -2,6 +2,7 @@ import { transbankService } from '../utils/transbankService.js';
 import { orderService } from '../models/orderModel.js';
 import { cartService } from '../models/cartModel.js';
 import { supabase } from '../database.js';
+import logger from '../utils/logger.js';
 
 // Función auxiliar para verificar autenticación
 function requireAuth(req, res) {
@@ -87,7 +88,7 @@ export const initiatePayment = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error initiating payment:', error);
+    logger.error('Error initiating payment:', { message: error.message });
     return res.status(500).json({
       success: false,
       message: 'Error al procesar el pago: ' + error.message
@@ -108,9 +109,7 @@ export const confirmPayment = async (req, res) => {
     }
 
     // Confirmar transacción en Transbank
-    console.log('🔍 Intentando confirmar transacción con token:', token_ws);
     const transbankResponse = await transbankService.confirmTransaction(token_ws);
-    console.log('✅ Respuesta de confirmación:', transbankResponse);
 
     // Buscar orden por token
     const { data: orders, error } = await supabase
@@ -151,7 +150,7 @@ export const confirmPayment = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error confirming payment:', error);
+    logger.error('Error confirming payment:', { message: error.message });
     
     // Manejar diferentes tipos de errores
     if (error.message.includes('aborted')) {
@@ -214,7 +213,7 @@ export const getPaymentStatus = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error getting payment status:', error);
+    logger.error('Error getting payment status:', { message: error.message });
     return res.status(500).json({
       success: false,
       message: 'Error al obtener el estado del pago: ' + error.message
@@ -263,7 +262,7 @@ export const refundPayment = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error refunding payment:', error);
+    logger.error('Error refunding payment:', { message: error.message });
     return res.status(500).json({
       success: false,
       message: 'Error al anular el pago: ' + error.message

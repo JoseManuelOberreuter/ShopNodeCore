@@ -48,24 +48,12 @@ export const transbankService = {
   // Crear transacción
   async createTransaction(amount, orderId, sessionId, returnUrl) {
     try {
-      logger.info('Creando transacción con parámetros:', {
-        amount,
-        orderId,
-        sessionId,
-        returnUrl
-      });
-
-      logger.debug('Llamando a webpayPlus.create()...');
       const response = await webpayPlus.create(
         orderId,
         sessionId,
         amount,
         returnUrl
       );
-
-      logger.info('Transacción creada exitosamente', { orderId, sessionId });
-      logger.debug('URL devuelta por Transbank:', response.url);
-      logger.safe('Token devuelto por Transbank:', response.token);
       
       // Validar que la respuesta tenga la estructura esperada
       if (!response || !response.token || !response.url) {

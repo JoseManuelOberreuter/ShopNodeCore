@@ -6,23 +6,6 @@ export const orderService = {
     try {
       const orderNumber = this.generateOrderNumber();
       
-      console.log('📝 Insertando orden en base de datos:', {
-        user_id: orderData.userId,
-        order_number: orderNumber,
-        total_amount: orderData.totalAmount,
-        status: orderData.status || 'pending',
-        shipping_street: orderData.shippingAddress?.street,
-        shipping_city: orderData.shippingAddress?.city,
-        shipping_state: orderData.shippingAddress?.state,
-        shipping_zip_code: orderData.shippingAddress?.zipCode,
-        shipping_country: orderData.shippingAddress?.country,
-        payment_method: orderData.paymentMethod || 'webpay',
-        payment_status: orderData.paymentStatus || 'pending',
-        transbank_token: orderData.transbankToken || null,
-        transbank_status: orderData.transbankStatus || null,
-        notes: orderData.notes
-      });
-      
       const { data, error } = await supabase
         .from('orders')
         .insert([{
@@ -45,20 +28,16 @@ export const orderService = {
         .single();
 
       if (error) {
-        console.error('❌ Error de Supabase al crear orden:', error);
         throw new Error(`Error de base de datos: ${error.message}`);
       }
 
       if (!data) {
-        console.error('❌ No se devolvió data de Supabase');
         throw new Error('No se pudo crear la orden');
       }
 
-      console.log('✅ Orden creada exitosamente:', data);
       return data;
       
     } catch (error) {
-      console.error('❌ Error en orderService.create:', error);
       throw error;
     }
   },

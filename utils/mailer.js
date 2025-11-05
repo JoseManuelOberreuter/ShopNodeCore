@@ -55,17 +55,13 @@ const sendVerificationEmail = async (email, token) => {
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log("✅ Correo de verificación enviado a:", email);
   } catch (error) {
-    console.error("❌ Error enviando correo de verificación:", error);
     throw error;
   }
 };
 
 // 📌 Enviar correo de recuperación de contraseña
 const sendPasswordResetEmail = async (email, token) => {
-  console.log("📧 Enviando correo de recuperación a:", email);
-  console.log("🔗 Enlace de recuperación generado:", `http://localhost:5173/resetpassword?token=${token}`);
 
   const resetLink = `http://localhost:5173/resetpassword?token=${token}`;
 
@@ -116,9 +112,8 @@ const sendPasswordResetEmail = async (email, token) => {
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log("✅ Correo de recuperación enviado:", info.response);
   } catch (error) {
-    console.error("❌ Error enviando el correo de recuperación:", error);
+    throw error;
   }
 };
 

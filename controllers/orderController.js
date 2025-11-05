@@ -2,6 +2,7 @@ import { orderService } from '../models/orderModel.js';
 import { transbankService } from '../utils/transbankService.js';
 import { cartService } from '../models/cartModel.js';
 import { productService } from '../models/productModel.js';
+import logger from '../utils/logger.js';
 
 // Crear nueva orden
 export const createOrder = async (req, res) => {
@@ -77,7 +78,7 @@ export const createOrder = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error creating order:', error);
+    logger.error('Error creating order:', { message: error.message });
     return res.status(500).json({
       success: false,
       message: 'Error al crear la orden: ' + error.message
@@ -149,7 +150,7 @@ export const getUserOrders = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error getting user orders:', error);
+    logger.error('Error getting user orders:', { message: error.message });
     return res.status(500).json({
       success: false,
       message: 'Error al obtener las órdenes: ' + error.message
@@ -192,7 +193,7 @@ export const getOrderById = async (req, res) => {
         const transbankResponse = await transbankService.getTransactionStatus(order.transbank_token);
         transbankStatus = transbankResponse.status;
       } catch (error) {
-        console.warn('No se pudo obtener estado de Transbank:', error.message);
+        logger.warn('No se pudo obtener estado de Transbank:', { message: error.message });
       }
     }
 
@@ -230,7 +231,7 @@ export const getOrderById = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error getting order by ID:', error);
+    logger.error('Error getting order by ID:', { message: error.message });
     return res.status(500).json({
       success: false,
       message: 'Error al obtener la orden: ' + error.message
@@ -288,7 +289,7 @@ export const cancelOrder = async (req, res) => {
         await transbankService.refundTransaction(order.transbank_token, order.total_amount);
         await orderService.updatePaymentStatus(order.id, 'refunded');
       } catch (error) {
-        console.error('Error processing refund:', error);
+        logger.error('Error processing refund:', { message: error.message });
         return res.status(500).json({
           success: false,
           message: 'Error al procesar el reembolso: ' + error.message
@@ -311,7 +312,7 @@ export const cancelOrder = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error cancelling order:', error);
+    logger.error('Error cancelling order:', { message: error.message });
     return res.status(500).json({
       success: false,
       message: 'Error al cancelar la orden: ' + error.message
@@ -389,7 +390,7 @@ export const getAllOrders = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error getting all orders:', error);
+    logger.error('Error getting all orders:', { message: error.message });
     return res.status(500).json({
       success: false,
       message: 'Error al obtener las órdenes: ' + error.message
@@ -446,7 +447,7 @@ export const updateOrderStatus = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error updating order status:', error);
+    logger.error('Error updating order status:', { message: error.message });
     return res.status(500).json({
       success: false,
       message: 'Error al actualizar el estado de la orden: ' + error.message
@@ -535,7 +536,7 @@ export const getOrderStats = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error getting order stats:', error);
+    logger.error('Error getting order stats:', { message: error.message });
     return res.status(500).json({
       success: false,
       message: 'Error al obtener las estadísticas: ' + error.message
@@ -608,7 +609,7 @@ export const createTestOrder = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error creating test order:', error);
+    logger.error('Error creating test order:', { message: error.message });
     return res.status(500).json({
       success: false,
       message: 'Error al crear la orden de prueba: ' + error.message
