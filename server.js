@@ -92,12 +92,28 @@ const allowedOrigins = isDevelopment
       ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : [])
     ];
 
+// Log para debugging
+console.log('CORS Configuration:', {
+  isDevelopment,
+  allowedOrigins,
+  ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
+  FRONTEND_URL: process.env.FRONTEND_URL,
+  VERCEL_URL: process.env.VERCEL_URL
+});
+
 app.use(cors({
   origin: (origin, callback) => {
+    // Log cada request para debugging
+    console.log('CORS request:', { origin, allowedOrigins });
+    
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      console.log('No origin, allowing request');
+      return callback(null, true);
+    }
     
     if (allowedOrigins.indexOf(origin) !== -1 || isDevelopment) {
+      console.log('Origin allowed:', origin);
       callback(null, true);
     } else {
       console.error('CORS blocked origin:', origin);
@@ -106,7 +122,7 @@ app.use(cors({
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], // Agregar OPTIONS
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
