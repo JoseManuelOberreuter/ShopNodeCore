@@ -24,7 +24,6 @@ connectDB().then(() => {
   app.listen(PORT, () => {
     logger.info(`🚀 Servidor corriendo en http://localhost:${PORT}`);
     logger.info(`📚 Documentación Swagger disponible en: http://localhost:${PORT}/api-docs`);
-    logger.info(`📁 Sistema de Gestión de Documentos iniciado correctamente`);
     
     // Conditional Transbank environment message (safe to log)
     const environment = process.env.TRANSBANK_ENVIRONMENT || 'integration';
