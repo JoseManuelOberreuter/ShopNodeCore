@@ -5,6 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import dotenv from 'dotenv';
 import logger from '../utils/logger.js';
+import { validateProductId, validatePrice, validateStock, validateRequiredFields } from '../utils/productValidators.js';
+import { buildProductQuery } from '../utils/productQueryBuilder.js';
 
 dotenv.config();
 
@@ -83,88 +85,25 @@ const deleteImageFromSupabase = async (imageUrl) => {
 // Obtener todos los productos (público)           
 export const getAllProducts = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
+    const { page, limit, category, search, minPrice, maxPrice, sortBy, sortOrder } = req.query;
+
+    const result = await buildProductQuery({
+      page,
+      limit: limit || 10,
+      sortBy,
+      sortOrder,
       category,
       search,
       minPrice,
       maxPrice,
-      sortBy = 'created_at',
-      sortOrder = 'desc'
-    } = req.query;
-
-    const pageInt = parseInt(page);
-    const limitInt = parseInt(limit);
-    const offset = (pageInt - 1) * limitInt;
-
-    // Mapeo de campos para compatibilidad camelCase -> snake_case
-    const fieldMapping = {
-      'createdAt': 'created_at',
-      'updatedAt': 'updated_at',
-      'isActive': 'is_active'
-    };
-
-    // Campos válidos para ordenamiento
-    const validSortFields = ['id', 'name', 'price', 'stock', 'category', 'created_at', 'updated_at'];
-    
-    // Mapear campo de ordenamiento si es necesario
-    const mappedSortBy = fieldMapping[sortBy] || sortBy;
-    
-    // Validar campo de ordenamiento
-    const finalSortBy = validSortFields.includes(mappedSortBy) ? mappedSortBy : 'created_at';
-
-    // Construir filtros
-    const filters = {};
-    if (category) filters.category = category;
-    if (search) filters.search = search;
-    if (minPrice) filters.minPrice = parseFloat(minPrice);
-    if (maxPrice) filters.maxPrice = parseFloat(maxPrice);
-
-    // Construir query base
-    let query = supabase
-      .from('products')
-      .select('*', { count: 'exact' })
-      .eq('is_active', true);
-
-    // Aplicar filtros
-    if (filters.category) {
-      query = query.eq('category', filters.category);
-    }
-
-    if (filters.minPrice) {
-      query = query.gte('price', filters.minPrice);
-    }
-
-    if (filters.maxPrice) {
-      query = query.lte('price', filters.maxPrice);
-    }
-
-    if (filters.search) {
-      query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
-    }
-
-    // Aplicar ordenamiento y paginación
-    const { data, error, count } = await query
-      .order(finalSortBy, { ascending: sortOrder === 'asc' })
-      .range(offset, offset + limitInt - 1);
-
-    if (error) throw error;
-
-    const totalPages = Math.ceil(count / limitInt);
+      isActive: true // Solo productos activos
+    });
 
     res.json({
       success: true,
-      data,
-      pagination: {
-        currentPage: pageInt,
-        totalPages,
-        totalProducts: count,
-        limit: limitInt,
-        hasNextPage: pageInt < totalPages,
-        hasPreviousPage: pageInt > 1
-      },
-      filters: filters
+      data: result.data,
+      pagination: result.pagination,
+      filters: { category, search, minPrice, maxPrice }
     });
   } catch (error) {
     logger.error('Error obteniendo productos:', { message: error.message });
@@ -181,14 +120,16 @@ export const getProductById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!id || isNaN(parseInt(id))) {
+    // Validar ID
+    const idValidation = validateProductId(id);
+    if (!idValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'ID de producto inválido'
+        message: idValidation.error
       });
     }
 
-    const product = await productService.findById(parseInt(id));
+    const product = await productService.findById(idValidation.productId);
 
     if (!product) {
       return res.status(404).json({
@@ -216,29 +157,30 @@ export const createProduct = async (req, res) => {
   try {
     const { name, description, price, stock, category, isActive } = req.body;
 
-    // Validación de datos requeridos
-    if (!name || !description || !price || !category) {
+    // Validar campos requeridos
+    const requiredValidation = validateRequiredFields({ name, description, price, category });
+    if (!requiredValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'Faltan campos requeridos: name, description, price, category'
+        message: `Faltan campos requeridos: ${requiredValidation.missingFields.join(', ')}`
       });
     }
 
     // Validar precio
-    const priceFloat = parseFloat(price);
-    if (isNaN(priceFloat) || priceFloat < 0) {
+    const priceValidation = validatePrice(price);
+    if (!priceValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'El precio debe ser un número válido mayor o igual a 0'
+        message: priceValidation.error
       });
     }
 
-    // Validar stock
-    const stockInt = stock ? parseInt(stock) : 0;
-    if (isNaN(stockInt) || stockInt < 0) {
+    // Validar stock (permitir vacío, se usa 0 por defecto)
+    const stockValidation = validateStock(stock, true);
+    if (!stockValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'El stock debe ser un número entero mayor o igual a 0'
+        message: stockValidation.error
       });
     }
 
@@ -252,8 +194,8 @@ export const createProduct = async (req, res) => {
     const productData = {
       name: name.trim(),
       description: description.trim(),
-      price: priceFloat,
-      stock: stockInt,
+      price: priceValidation.price,
+      stock: stockValidation.stock || 0,
       category: category.trim(),
       image: imageUrl,
       isActive: isActive !== undefined ? isActive === 'true' : true
@@ -280,31 +222,25 @@ export const createProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Si viene FormData, los campos están en req.body pero pueden tener diferentes nombres
     const { name, description, price, stock, category, isActive, is_active } = req.body;
 
-    if (!id || isNaN(parseInt(id))) {
+    // Validar ID
+    const idValidation = validateProductId(id);
+    if (!idValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'ID de producto inválido'
+        message: idValidation.error
       });
     }
 
-    const productId = parseInt(id);
-
-    // Buscar directamente sin usar findById (que filtra por is_active)
-    // O modificar findById para que no filtre
+    // Buscar producto existente
     const { data: existingProduct, error: findError } = await supabase
       .from('products')
       .select('*')
-      .eq('id', productId)
+      .eq('id', idValidation.productId)
       .maybeSingle();
 
-    if (findError) {
-      throw findError;
-    }
-
+    if (findError) throw findError;
     if (!existingProduct) {
       return res.status(404).json({
         success: false,
@@ -318,60 +254,52 @@ export const updateProduct = async (req, res) => {
     if (name) updateData.name = name.trim();
     if (description) updateData.description = description.trim();
     if (category) updateData.category = category.trim();
-    
-    // Manejar tanto isActive (camelCase) como is_active (snake_case)
+
+    // Manejar isActive
     const isActiveValue = isActive !== undefined ? isActive : is_active;
     if (isActiveValue !== undefined) {
-      // Convertir a boolean - manejar diferentes formatos
-      if (isActiveValue === 'true' || isActiveValue === true) {
-        updateData.is_active = true;
-      } else if (isActiveValue === 'false' || isActiveValue === false) {
-        updateData.is_active = false;
-      }
+      updateData.is_active = isActiveValue === 'true' || isActiveValue === true;
     }
 
     // Validar y actualizar precio
     if (price !== undefined && price !== '') {
-      const priceFloat = parseFloat(price);
-      if (isNaN(priceFloat) || priceFloat < 0) {
+      const priceValidation = validatePrice(price);
+      if (!priceValidation.isValid) {
         return res.status(400).json({
           success: false,
-          message: 'El precio debe ser un número válido mayor o igual a 0'
+          message: priceValidation.error
         });
       }
-      updateData.price = priceFloat;
+      updateData.price = priceValidation.price;
     }
 
     // Validar y actualizar stock
     if (stock !== undefined && stock !== '') {
-      const stockInt = parseInt(stock);
-      if (isNaN(stockInt) || stockInt < 0) {
+      const stockValidation = validateStock(stock, true);
+      if (!stockValidation.isValid) {
         return res.status(400).json({
           success: false,
-          message: 'El stock debe ser un número entero mayor o igual a 0'
+          message: stockValidation.error
         });
       }
-      updateData.stock = stockInt;
+      updateData.stock = stockValidation.stock;
       
       // Si el stock llega a 0, desactivar el producto automáticamente
-      if (stockInt === 0) {
+      if (stockValidation.stock === 0) {
         updateData.is_active = false;
       }
     }
 
     // Procesar nueva imagen si se subió
     if (req.file) {
-      // Eliminar imagen anterior si existe
       if (existingProduct.image) {
         await deleteImageFromSupabase(existingProduct.image);
       }
-      
-      // Subir nueva imagen
       updateData.image = await uploadImageToSupabase(req.file);
     }
 
     // Actualizar producto
-    const updatedProduct = await productService.update(productId, updateData);
+    const updatedProduct = await productService.update(idValidation.productId, updateData);
 
     res.json({
       success: true,
@@ -393,17 +321,17 @@ export const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
     
-    if (!id || isNaN(parseInt(id))) {
+    // Validar ID
+    const idValidation = validateProductId(id);
+    if (!idValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'ID de producto inválido'
+        message: idValidation.error
       });
     }
     
-    const productId = parseInt(id);
-    
     // Verificar si el producto existe
-    const existingProduct = await productService.findById(productId);
+    const existingProduct = await productService.findById(idValidation.productId);
     
     if (!existingProduct) {
       return res.status(404).json({
@@ -413,7 +341,7 @@ export const deleteProduct = async (req, res) => {
     }
     
     // Eliminar producto (soft delete)
-    await productService.delete(productId);
+    await productService.delete(idValidation.productId);
     
     res.json({
       success: true,
@@ -462,26 +390,26 @@ export const updateStock = async (req, res) => {
     const { id } = req.params;
     const { stock, operation } = req.body;
 
-    if (!id || isNaN(parseInt(id))) {
+    // Validar ID
+    const idValidation = validateProductId(id);
+    if (!idValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'ID de producto inválido'
+        message: idValidation.error
       });
     }
 
-    const productId = parseInt(id);
-
     // Validar stock
-    const stockInt = parseInt(stock);
-    if (isNaN(stockInt) || stockInt < 0) {
+    const stockValidation = validateStock(stock);
+    if (!stockValidation.isValid) {
       return res.status(400).json({
         success: false,
-        message: 'El stock debe ser un número entero mayor o igual a 0'
+        message: stockValidation.error
       });
     }
 
     // Verificar si el producto existe
-    const existingProduct = await productService.findById(productId);
+    const existingProduct = await productService.findById(idValidation.productId);
     if (!existingProduct) {
       return res.status(404).json({
         success: false,
@@ -491,15 +419,15 @@ export const updateStock = async (req, res) => {
 
     let newStock;
     if (operation === 'add') {
-      newStock = existingProduct.stock + stockInt;
+      newStock = existingProduct.stock + stockValidation.stock;
     } else if (operation === 'subtract') {
-      newStock = Math.max(0, existingProduct.stock - stockInt);
+      newStock = Math.max(0, existingProduct.stock - stockValidation.stock);
     } else {
-      newStock = stockInt; // Establecer stock absoluto
+      newStock = stockValidation.stock; // Establecer stock absoluto
     }
 
     // Actualizar stock
-    const updatedProduct = await productService.update(productId, { stock: newStock });
+    const updatedProduct = await productService.update(idValidation.productId, { stock: newStock });
 
     res.json({
       success: true,
@@ -525,62 +453,19 @@ export const updateStock = async (req, res) => {
 // Obtener todos los productos para admin (incluye inactivos)
 export const getAllProductsAdmin = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 20,
-      sortBy = 'created_at',
-      sortOrder = 'desc',
+    const { page, limit, category, search, isActive, sortBy, sortOrder } = req.query;
+
+    const result = await buildProductQuery({
+      page,
+      limit: limit || 20,
+      sortBy,
+      sortOrder,
       category,
       search,
-      isActive
-    } = req.query;
+      isActive: isActive !== undefined ? isActive === 'true' : null // Todos los productos
+    });
 
-    const pageInt = parseInt(page);
-    const limitInt = parseInt(limit);
-    const offset = (pageInt - 1) * limitInt;
-
-    // Mapeo de campos para compatibilidad camelCase -> snake_case
-    const fieldMapping = {
-      'createdAt': 'created_at',
-      'updatedAt': 'updated_at',
-      'isActive': 'is_active'
-    };
-
-    // Campos válidos para ordenamiento
-    const validSortFields = ['id', 'name', 'price', 'stock', 'category', 'created_at', 'updated_at'];
-    
-    // Mapear campo de ordenamiento si es necesario
-    const mappedSortBy = fieldMapping[sortBy] || sortBy;
-    
-    // Validar campo de ordenamiento
-    const finalSortBy = validSortFields.includes(mappedSortBy) ? mappedSortBy : 'created_at';
-
-    // Construir query base sin filtro de is_active
-    let query = supabase
-      .from('products')
-      .select('*', { count: 'exact' });
-
-    // Aplicar filtros
-    if (category) {
-      query = query.eq('category', category);
-    }
-
-    if (search) {
-      query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
-    }
-
-    if (isActive !== undefined) {
-      query = query.eq('is_active', isActive === 'true');
-    }
-
-    // Aplicar ordenamiento y paginación
-    const { data, error, count } = await query
-      .order(finalSortBy, { ascending: sortOrder === 'asc' })
-      .range(offset, offset + limitInt - 1);
-
-    if (error) throw error;
-
-    // Obtener estadísticas
+    // Obtener estadísticas (solo para admin)
     const { data: statsData, error: statsError } = await supabase
       .from('products')
       .select('is_active, stock');
@@ -594,25 +479,12 @@ export const getAllProductsAdmin = async (req, res) => {
       lowStock: statsData.filter(p => p.stock < 5).length
     };
 
-    const totalPages = Math.ceil(count / limitInt);
-
     res.json({
       success: true,
-      data,
-      pagination: {
-        currentPage: pageInt,
-        totalPages,
-        totalProducts: count,
-        limit: limitInt,
-        hasNextPage: pageInt < totalPages,
-        hasPreviousPage: pageInt > 1
-      },
+      data: result.data,
+      pagination: result.pagination,
       stats,
-      filters: {
-        category,
-        search,
-        isActive
-      }
+      filters: { category, search, isActive }
     });
   } catch (error) {
     logger.error('Error obteniendo productos admin:', { message: error.message });
