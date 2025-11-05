@@ -13,6 +13,9 @@ import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 
 const app = express();
 
+// Trust proxy for Vercel (required for X-Forwarded-For headers)
+app.set('trust proxy', 1);
+
 // Rutas del sistema de carrito de compras
 import userRoutes from './routes/userRouter.js';
 import productRoutes from './routes/productRoutes.js';
@@ -83,6 +86,8 @@ const allowedOrigins = isDevelopment
   ? ['http://localhost:5173', 'http://localhost:3000']
   : [
       ...(process.env.ALLOWED_ORIGINS?.split(',') || []),
+      // Allow frontend URL if configured
+      ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
       // Allow Vercel deployment URL if present
       ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : [])
     ];
@@ -95,11 +100,13 @@ app.use(cors({
     if (allowedOrigins.indexOf(origin) !== -1 || isDevelopment) {
       callback(null, true);
     } else {
+      console.error('CORS blocked origin:', origin);
+      console.error('Allowed origins:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], // Agregar OPTIONS
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 

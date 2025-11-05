@@ -9,7 +9,11 @@ const supabaseKey = process.env.SUPABASE_KEY
 // Don't throw error on import - let it fail gracefully
 let supabase;
 
-if (!supabaseKey) {
+if (!supabaseUrl) {
+  console.error('⚠️ SUPABASE_URL is not set - Supabase operations will fail');
+  // Create a dummy client to prevent crashes on import
+  supabase = createClient('https://dummy.supabase.co', supabaseKey || '');
+} else if (!supabaseKey) {
   console.error('⚠️ SUPABASE_KEY is not set - Supabase operations will fail');
   // Create a dummy client to prevent crashes on import
   supabase = createClient(supabaseUrl, '');
