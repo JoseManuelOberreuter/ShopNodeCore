@@ -1,42 +1,50 @@
 import { userService } from '../models/userModel.js';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
-
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/mailer.js';
 import { validatePassword } from '../utils/passwordValidator.js';
 import logger from '../utils/logger.js';
+import { hashPassword, comparePassword } from '../utils/passwordHelper.js';
+import { generateVerificationToken, generateResetToken, generateAuthToken, verifyToken } from '../utils/tokenHelper.js';
+import { successResponse, errorResponse, notFoundResponse, unauthorizedResponse, serverErrorResponse } from '../utils/responseHelper.js';
+import { formatUser } from '../utils/formatters.js';
+import { validateRequiredFields, validateEmail, validateUserId } from '../utils/validators.js';
+import { requireAdmin } from '../utils/authHelper.js';
 
-// 📌 Registrar Usuario
+// Register User
 const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Validar campos requeridos
-    if (!email || !password || !name) {
-      return res.status(400).json({ error: "Todos los campos son requeridos" });
+    // Validate required fields
+    const requiredValidation = validateRequiredFields({ name, email, password }, ['name', 'email', 'password']);
+    if (!requiredValidation.isValid) {
+      return errorResponse(res, 'Todos los campos son requeridos', 400);
     }
 
-    // Validar la seguridad de la contraseña
+    // Validate email format
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
+      return errorResponse(res, emailValidation.error, 400);
+    }
+
+    // Validate password security
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.isValid) {
-      return res.status(400).json({ error: passwordValidation.message });
+      return errorResponse(res, passwordValidation.message, 400);
     }
 
-    // Verificar si el usuario ya existe
+    // Check if user already exists
     const userExists = await userService.findByEmail(email);
     if (userExists) {
-      return res.status(400).json({ error: "El usuario ya existe" });
+      return errorResponse(res, 'El usuario ya existe', 400);
     }
 
-    // Encriptar contraseña
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    // Hash password
+    const hashedPassword = await hashPassword(password);
 
-    // Generar Token para verificación
-    const verificationToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    // Generate verification token
+    const verificationToken = generateVerificationToken(email);
 
-    // Crear usuario
+    // Create user
     const newUser = await userService.create({
       name,
       email,
@@ -45,176 +53,180 @@ const registerUser = async (req, res) => {
       verificationToken
     });
 
-    // Enviar correo de verificación
+    // Send verification email
     await sendVerificationEmail(email, verificationToken);
 
-    // Devolver respuesta exitosa
-    res.status(201).json({
-      message: "Usuario registrado exitosamente",
-      user: {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        is_verified: newUser.is_verified
-      }
-    });
+    // Return success response
+    const formattedUser = formatUser(newUser);
+    return successResponse(res, formattedUser, 'Usuario registrado exitosamente', 201);
+
   } catch (error) {
-    logger.error("Error en registerUser:", { message: error.message });
-    res.status(500).json({ error: "Error interno del servidor" });
+    logger.error('Error en registerUser:', { message: error.message });
+    return serverErrorResponse(res, error);
   }
 };
 
-// 📌 Reenviar correo de verificación
+// Resend verification email
 const resendVerificationEmail = async (req, res) => {
   try {
     const { email } = req.body;
 
-    // Validar que se proporcione el email
-    if (!email) {
-      return res.status(400).json({ error: "El email es requerido" });
+    // Validate email
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
+      return errorResponse(res, emailValidation.error, 400);
     }
 
-    // Buscar usuario por email
+    // Find user by email
     const user = await userService.findByEmail(email);
     if (!user) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
+      return notFoundResponse(res, 'Usuario');
     }
 
-    // Verificar si la cuenta ya está verificada
+    // Check if account is already verified
     if (user.is_verified) {
-      return res.status(400).json({ error: "La cuenta ya está verificada" });
+      return errorResponse(res, 'La cuenta ya está verificada', 400);
     }
 
-    // Generar nuevo token de verificación
-    const verificationToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    // Generate new verification token
+    const verificationToken = generateVerificationToken(email);
 
-    // Actualizar el token en la base de datos
+    // Update token in database
     await userService.update(user.id, { verification_token: verificationToken });
 
-    // Enviar correo de verificación
+    // Send verification email
     await sendVerificationEmail(email, verificationToken);
 
-    res.json({ 
-      success: true, 
-      message: "Correo de verificación reenviado exitosamente. Revisa tu bandeja de entrada." 
-    });
+    return successResponse(res, null, 'Correo de verificación reenviado exitosamente. Revisa tu bandeja de entrada.');
+
   } catch (error) {
-    logger.error("Error al reenviar correo de verificación:", { message: error.message });
-    res.status(500).json({ error: "Error al reenviar el correo de verificación" });
+    logger.error('Error al reenviar correo de verificación:', { message: error.message });
+    return serverErrorResponse(res, error, 'Error al reenviar el correo de verificación');
   }
 };
 
-// 📌 Iniciar Sesión
+// Login User
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validar campos requeridos
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email y contraseña son requeridos" });
+    // Validate required fields
+    const requiredValidation = validateRequiredFields({ email, password }, ['email', 'password']);
+    if (!requiredValidation.isValid) {
+      return errorResponse(res, 'Email y contraseña son requeridos', 400);
     }
 
-    // Buscar usuario
+    // Find user
     const user = await userService.findByEmail(email);
     if (!user) {
-      return res.status(401).json({ error: "Credenciales inválidas" });
+      return unauthorizedResponse(res, 'Credenciales inválidas');
     }
 
-    // Verificar contraseña
-    const isMatch = await bcrypt.compare(password, user.password);
+    // Verify password
+    const isMatch = await comparePassword(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ error: "Credenciales inválidas" });
+      return unauthorizedResponse(res, 'Credenciales inválidas');
     }
 
-    // Verificar si la cuenta está verificada
+    // Check if account is verified
     if (!user.is_verified) {
-      // Generar nuevo token de verificación
-      const verificationToken = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+      // Generate new verification token
+      const verificationToken = generateVerificationToken(email);
       
-      // Actualizar el token en la base de datos
+      // Update token in database
       await userService.update(user.id, { verification_token: verificationToken });
       
-      // Enviar correo de verificación automáticamente
+      // Send verification email automatically
       await sendVerificationEmail(email, verificationToken);
       
-      return res.status(401).json({ 
-        error: "Por favor verifica tu cuenta primero. Se ha reenviado un nuevo correo de verificación.",
-        verificationSent: true
-      });
+      return unauthorizedResponse(res, 'Por favor verifica tu cuenta primero. Se ha reenviado un nuevo correo de verificación.');
     }
 
-    // Actualizar último login
+    // Update last login
     await userService.updateLastLogin(user.id);
 
-    // Generar token JWT
-    const token = jwt.sign(
-      { id: user.id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
+    // Generate JWT token
+    const token = generateAuthToken(user);
 
-    res.status(200).json({
-      message: "Login exitoso",
-      token
-    });
+    return successResponse(res, { token }, 'Login exitoso');
+
   } catch (error) {
-    logger.error("Error en loginUser:", { message: error.message });
-    res.status(500).json({ error: "Error interno del servidor" });
+    logger.error('Error en loginUser:', { message: error.message });
+    return serverErrorResponse(res, error);
   }
 };
 
-// 📌 Actualizar Usuario
+// Update User
 const updateUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
     const userId = req.params.id;
 
-    // Verificar si el usuario existe
-    const user = await userService.findById(userId);
-    if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
-
-    // Preparar datos para actualizar
-    const updateData = {};
-    if (name) updateData.name = name;
-    if (email) updateData.email = email;
-
-    // Si hay un nuevo password, encriptarlo
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(password, salt);
+    // Validate user ID
+    const idValidation = validateUserId(userId);
+    if (!idValidation.isValid) {
+      return errorResponse(res, idValidation.error, 400);
     }
 
-    // Actualizar usuario
-    await userService.update(userId, updateData);
+    // Check if user exists
+    const user = await userService.findById(idValidation.userId);
+    if (!user) {
+      return notFoundResponse(res, 'Usuario');
+    }
 
-    res.json({ message: "Usuario actualizado correctamente" });
+    // Prepare update data
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) {
+      const emailValidation = validateEmail(email);
+      if (!emailValidation.isValid) {
+        return errorResponse(res, emailValidation.error, 400);
+      }
+      updateData.email = email;
+    }
+
+    // If there's a new password, hash it
+    if (password) {
+      updateData.password = await hashPassword(password);
+    }
+
+    // Update user
+    await userService.update(idValidation.userId, updateData);
+
+    return successResponse(res, null, 'Usuario actualizado correctamente');
+
   } catch (error) {
-    logger.error("Error al actualizar usuario:", { message: error.message });
-    res.status(500).json({ error: "Error al actualizar usuario" });
+    logger.error('Error al actualizar usuario:', { message: error.message });
+    return serverErrorResponse(res, error, 'Error al actualizar usuario');
   }
 };
 
-// 📌 Actualizar Perfil del Usuario Autenticado
+// Update Profile (Authenticated User)
 const updateProfile = async (req, res) => {
   try {
     const { name, email, password, telefono, fechaNacimiento, direccion } = req.body;
-    const userId = req.user.id; // Se obtiene del middleware de autenticación
+    const userId = req.user.id; // From authentication middleware
 
-    // Buscar el usuario por su ID
+    // Find user by ID
     const user = await userService.findById(userId);
     if (!user) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
+      return notFoundResponse(res, 'Usuario');
     }
 
-    // Validar que el nuevo email no esté en uso por otro usuario
+    // Validate that new email is not in use by another user
     if (email && email !== user.email) {
+      const emailValidation = validateEmail(email);
+      if (!emailValidation.isValid) {
+        return errorResponse(res, emailValidation.error, 400);
+      }
+
       const emailExists = await userService.findByEmail(email);
       if (emailExists) {
-        return res.status(400).json({ error: "El email ya está en uso por otro usuario" });
+        return errorResponse(res, 'El email ya está en uso por otro usuario', 400);
       }
     }
 
-    // Preparar datos para actualizar
+    // Prepare update data
     const updateData = {};
     if (name) updateData.name = name;
     if (email) updateData.email = email;
@@ -222,403 +234,316 @@ const updateProfile = async (req, res) => {
     if (fechaNacimiento !== undefined) updateData.fecha_nacimiento = fechaNacimiento;
     if (direccion !== undefined) updateData.direccion = direccion;
 
-    // Si hay una nueva contraseña, validarla y encriptarla
+    // If there's a new password, validate and hash it
     if (password) {
       const passwordValidation = validatePassword(password);
       if (!passwordValidation.isValid) {
-        return res.status(400).json({ error: passwordValidation.message });
+        return errorResponse(res, passwordValidation.message, 400);
       }
 
-      const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(password, salt);
+      updateData.password = await hashPassword(password);
     }
 
-    // Actualizar usuario
+    // Update user
     const updatedUser = await userService.update(userId, updateData);
 
-    // Devolver respuesta exitosa con los datos actualizados (sin contraseña)
-    res.json({
-      success: true,
-      message: "Perfil actualizado exitosamente",
-      data: {
-        id: updatedUser.id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        role: updatedUser.role,
-        telefono: updatedUser.telefono,
-        fecha_nacimiento: updatedUser.fecha_nacimiento,
-        direccion: updatedUser.direccion,
-        avatar: updatedUser.avatar
-      }
-    });
+    // Return success response with updated data (without password)
+    const formattedUser = formatUser(updatedUser);
+    return successResponse(res, formattedUser, 'Perfil actualizado exitosamente');
+
   } catch (error) {
-    logger.error("Error al actualizar perfil:", { message: error.message });
-    res.status(500).json({ error: "Error al actualizar el perfil" });
+    logger.error('Error al actualizar perfil:', { message: error.message });
+    return serverErrorResponse(res, error, 'Error al actualizar el perfil');
   }
 };
 
-// 📌 Verificar Cuenta con el Token
+// Verify User Account with Token
 const verifyUser = async (req, res) => {
   try {
     const { token } = req.params;
 
-    // Decodificar el token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Verify token
+    let decoded;
+    try {
+      decoded = verifyToken(token);
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        return errorResponse(res, 'El enlace de verificación ha expirado. Por favor, solicita uno nuevo.', 400);
+      }
+      if (error.name === 'JsonWebTokenError') {
+        return errorResponse(res, 'El token de verificación no es válido.', 400);
+      }
+      throw error;
+    }
     
-    // Buscar usuario con el email del token
+    // Find user with token email
     const user = await userService.findByEmail(decoded.email);
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: 'Usuario no encontrado',
-        type: 'USER_NOT_FOUND',
-        message: 'El token no corresponde a ningún usuario registrado.'
-      });
+      return notFoundResponse(res, 'Usuario');
     }
 
     if (user.is_verified) {
-      return res.status(200).json({
-        success: true,
-        message: 'La cuenta ya está verificada',
-        type: 'ALREADY_VERIFIED',
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name
-        }
-      });
+      const formattedUser = formatUser(user);
+      return successResponse(res, formattedUser, 'La cuenta ya está verificada');
     }
 
-    // Marcar la cuenta como verificada
+    // Mark account as verified
     await userService.update(user.id, { 
       is_verified: true, 
       verification_token: null 
     });
 
-    logger.info("Cuenta verificada exitosamente", { userId: user.id });
+    logger.info('Cuenta verificada exitosamente', { userId: user.id });
 
-    return res.status(200).json({
-      success: true,
-      message: 'Cuenta verificada exitosamente',
-      type: 'VERIFIED',
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name
-      }
-    });
+    const formattedUser = formatUser(user);
+    return successResponse(res, formattedUser, 'Cuenta verificada exitosamente');
 
   } catch (error) {
-    logger.error("Error al verificar cuenta:", { message: error.message });
-    
-    if (error.name === 'TokenExpiredError') {
-      return res.status(400).json({
-        success: false,
-        error: 'Token expirado',
-        type: 'TOKEN_EXPIRED',
-        message: 'El enlace de verificación ha expirado. Por favor, solicita uno nuevo.'
-      });
-    }
-    
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(400).json({
-        success: false,
-        error: 'Token inválido',
-        type: 'INVALID_TOKEN',
-        message: 'El token de verificación no es válido.'
-      });
-    }
-    
-    return res.status(500).json({
-      success: false,
-      error: 'Error interno del servidor',
-      type: 'SERVER_ERROR',
-      message: 'Ocurrió un error al verificar la cuenta.'
-    });
+    logger.error('Error al verificar cuenta:', { message: error.message });
+    return serverErrorResponse(res, error, 'Ocurrió un error al verificar la cuenta.');
   }
 };
 
-// 📌 Solicitar recuperación de contraseña
+// Request Password Reset
 const requestPasswordReset = async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await userService.findByEmail(email);
 
-    if (!user) {
-      return res.status(400).json({ error: "No existe una cuenta con este correo." });
+    // Validate email
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
+      return errorResponse(res, emailValidation.error, 400);
     }
 
-    // Generar un JWT en lugar de un token aleatorio
-    const resetToken = jwt.sign({ email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const user = await userService.findByEmail(email);
+    if (!user) {
+      return errorResponse(res, 'No existe una cuenta con este correo.', 400);
+    }
 
-    // Enviar correo con el enlace de restablecimiento
+    // Generate reset token
+    const resetToken = generateResetToken(user.email);
+
+    // Send email with reset link
     await sendPasswordResetEmail(user.email, resetToken);
 
-    res.json({ message: "Correo de recuperación enviado. Revisa tu bandeja de entrada." });
+    return successResponse(res, null, 'Correo de recuperación enviado. Revisa tu bandeja de entrada.');
+
   } catch (error) {
-    logger.error("Error en solicitud de recuperación:", { message: error.message });
-    res.status(500).json({ error: "Error al solicitar la recuperación de contraseña." });
+    logger.error('Error en solicitud de recuperación:', { message: error.message });
+    return serverErrorResponse(res, error, 'Error al solicitar la recuperación de contraseña.');
   }
 };
 
-// 📌 Restablecer la contraseña
+// Reset Password
 const resetPassword = async (req, res) => {
   try {
     const { token } = req.params;
     const { password } = req.body;
 
-    // Verificar el JWT
+    // Verify JWT
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      decoded = verifyToken(token);
     } catch (error) {
-      return res.status(400).json({ error: "Token inválido o expirado." });
+      return errorResponse(res, 'Token inválido o expirado.', 400);
     }
 
-    // Buscar usuario por email
+    // Find user by email
     const user = await userService.findByEmail(decoded.email);
     if (!user) {
-      return res.status(400).json({ error: "Usuario no encontrado." });
+      return errorResponse(res, 'Usuario no encontrado.', 400);
     }
 
-    // Validar seguridad de la nueva contraseña
+    // Validate new password security
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.isValid) {
-      return res.status(400).json({ error: passwordValidation.message });
+      return errorResponse(res, passwordValidation.message, 400);
     }
 
-    // Encriptar la nueva contraseña
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    // Hash new password
+    const hashedPassword = await hashPassword(password);
 
-    // Actualizar contraseña
+    // Update password
     await userService.update(user.id, { password: hashedPassword });
 
-    res.json({ message: "Contraseña restablecida con éxito. Ya puedes iniciar sesión." });
+    return successResponse(res, null, 'Contraseña restablecida con éxito. Ya puedes iniciar sesión.');
+
   } catch (error) {
-    logger.error("Error al restablecer contraseña:", { message: error.message });
-    res.status(500).json({ error: "Error al restablecer la contraseña." });
+    logger.error('Error al restablecer contraseña:', { message: error.message });
+    return serverErrorResponse(res, error, 'Error al restablecer la contraseña.');
   }
 };
 
-// 📌 Eliminar usuario
+// Delete User
 const deleteUser = async (req, res) => {
   try {
-    logger.info("Eliminando usuario", { userId: req.params.id });
+    logger.info('Eliminando usuario', { userId: req.params.id });
     
     const { email, password, confirmacion } = req.body;
 
-    // Validar si la confirmación es correcta
-    if (!confirmacion || confirmacion.toLowerCase() !== "eliminar") {
-      return res.status(400).json({ error: "Debe confirmar la eliminación escribiendo 'eliminar'" });
+    // Validate confirmation
+    if (!confirmacion || confirmacion.toLowerCase() !== 'eliminar') {
+      return errorResponse(res, "Debe confirmar la eliminación escribiendo 'eliminar'", 400);
     }
 
-    // Buscar al usuario por email
+    // Validate required fields
+    const requiredValidation = validateRequiredFields({ email, password }, ['email', 'password']);
+    if (!requiredValidation.isValid) {
+      return errorResponse(res, 'Email y contraseña son requeridos', 400);
+    }
+
+    // Find user by email
     const user = await userService.findByEmail(email);
     if (!user) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
+      return notFoundResponse(res, 'Usuario');
     }
 
-    // Verificar que la contraseña sea correcta
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    // Verify password is correct
+    const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ error: "Contraseña incorrecta" });
+      return unauthorizedResponse(res, 'Contraseña incorrecta');
     }
 
-    // Eliminar usuario
+    // Delete user
     await userService.delete(user.id);
 
-    logger.info("Usuario eliminado correctamente", { userId: user.id });
-    res.status(200).json({ message: "Usuario eliminado con éxito" });
+    logger.info('Usuario eliminado correctamente', { userId: user.id });
+    return successResponse(res, null, 'Usuario eliminado con éxito');
 
   } catch (error) {
-    logger.error("Error al eliminar usuario:", { message: error.message });
-    res.status(500).json({ error: "Error interno del servidor" });
+    logger.error('Error al eliminar usuario:', { message: error.message });
+    return serverErrorResponse(res, error);
   }
 };
 
-// 📌 Obtener datos del usuario por ID o email
+// Get User Data by ID or Email
 const getUserData = async (req, res) => {
   try {
-    const { identifier } = req.params; // Puede ser ID o email
+    const { identifier } = req.params; // Can be ID or email
 
-    // Intentar buscar por ID primero (verificar si es un número)
+    // Try to find by ID first (check if it's a number)
     let user = null;
     if (!isNaN(identifier)) {
-      user = await userService.findById(identifier);
+      const idValidation = validateUserId(identifier);
+      if (idValidation.isValid) {
+        user = await userService.findById(idValidation.userId);
+      }
     }
 
-    // Si no se encuentra por ID, buscar por email
+    // If not found by ID, search by email
     if (!user) {
-      user = await userService.findByEmail(identifier);
+      const emailValidation = validateEmail(identifier);
+      if (emailValidation.isValid) {
+        user = await userService.findByEmail(identifier);
+      }
     }
 
     if (!user) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
+      return notFoundResponse(res, 'Usuario');
     }
 
-    // Devolver los datos del usuario (sin la contraseña y el token de verificación)
-    const userResponse = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      is_verified: user.is_verified,
-      avatar: user.avatar,
-      telefono: user.telefono,
-      fecha_nacimiento: user.fecha_nacimiento,
-      direccion: user.direccion,
-      created_at: user.created_at,
-      last_login: user.last_login
-    };
+    const formattedUser = formatUser(user);
+    return successResponse(res, formattedUser);
 
-    res.json(userResponse);
   } catch (error) {
-    logger.error("Error al obtener los datos del usuario:", { message: error.message });
-    res.status(500).json({ error: "Error al obtener los datos del usuario" });
+    logger.error('Error al obtener los datos del usuario:', { message: error.message });
+    return serverErrorResponse(res, error, 'Error al obtener los datos del usuario');
   }
 };
 
-
-// 📌 Obtener todos los usuarios (Solo para administradores)
+// Get All Users (Admin Only)
 const getAllUsers = async (req, res) => {
   try {
-    // Obtener todos los usuarios de la base de datos (incluyendo eliminados)
+    if (!requireAdmin(req, res)) return;
+
+    // Get all users from database (including deleted)
     const users = await userService.findAllIncludingDeleted();
 
-    // Filtrar información sensible y formatear respuesta
-    const usersData = users.map(user => ({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      is_verified: user.is_verified,
-      avatar: user.avatar,
-      telefono: user.telefono,
-      fecha_nacimiento: user.fecha_nacimiento,
-      direccion: user.direccion,
-      created_at: user.created_at,
-      updated_at: user.updated_at,
-      last_login: user.last_login,
-      deleted_at: user.deleted_at,
-      is_active: user.is_active !== false && !user.deleted_at
-    }));
+    // Format response
+    const usersData = users.map(user => formatUser(user));
 
-    res.json({
-      success: true,
-      message: "Lista de usuarios obtenida exitosamente",
-      total: usersData.length,
-      data: usersData
-    });
+    return successResponse(res, {
+      users: usersData,
+      total: usersData.length
+    }, 'Lista de usuarios obtenida exitosamente');
+
   } catch (error) {
-    logger.error("Error al obtener todos los usuarios:", { message: error.message });
-    res.status(500).json({ 
-      success: false,
-      error: "Error interno del servidor al obtener los usuarios" 
-    });
+    logger.error('Error al obtener todos los usuarios:', { message: error.message });
+    return serverErrorResponse(res, error, 'Error interno del servidor al obtener los usuarios');
   }
 };
 
-// 📌 Obtener usuario por ID (Solo para administradores)
+// Get User by ID (Admin Only)
 const getUserById = async (req, res) => {
   try {
+    if (!requireAdmin(req, res)) return;
+
     const { id } = req.params;
 
-    // Validar que se proporcione el ID
-    if (!id) {
-      return res.status(400).json({ 
-        success: false,
-        error: "ID de usuario requerido" 
-      });
+    // Validate user ID
+    const idValidation = validateUserId(id);
+    if (!idValidation.isValid) {
+      return errorResponse(res, idValidation.error, 400);
     }
 
-    // Buscar usuario por ID
-    const user = await userService.findById(id);
-
+    // Find user by ID
+    const user = await userService.findById(idValidation.userId);
     if (!user) {
-      return res.status(404).json({ 
-        success: false,
-        error: "Usuario no encontrado" 
-      });
+      return notFoundResponse(res, 'Usuario');
     }
 
-    // Devolver los datos del usuario (sin la contraseña y el token de verificación)
-    const userResponse = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      is_verified: user.is_verified,
-      avatar: user.avatar,
-      telefono: user.telefono,
-      fecha_nacimiento: user.fecha_nacimiento,
-      direccion: user.direccion,
-      created_at: user.created_at,
-      updated_at: user.updated_at,
-      last_login: user.last_login
-    };
+    const formattedUser = formatUser(user);
+    return successResponse(res, formattedUser, 'Usuario obtenido exitosamente');
 
-    res.json({
-      success: true,
-      message: "Usuario obtenido exitosamente",
-      data: userResponse
-    });
   } catch (error) {
-    logger.error("Error al obtener el usuario:", { message: error.message });
-    res.status(500).json({ 
-      success: false,
-      error: "Error interno del servidor al obtener el usuario" 
-    });
+    logger.error('Error al obtener el usuario:', { message: error.message });
+    return serverErrorResponse(res, error, 'Error interno del servidor al obtener el usuario');
   }
 };
 
-// 📌 Actualizar usuario por administrador
+// Update User by Admin
 const updateUserByAdmin = async (req, res) => {
   try {
+    if (!requireAdmin(req, res)) return;
+
     const { id } = req.params;
     const { name, email, password, role, is_verified, telefono, fecha_nacimiento, direccion } = req.body;
 
-    // Validar que se proporcione el ID
-    if (!id) {
-      return res.status(400).json({ 
-        success: false,
-        error: "ID de usuario requerido" 
-      });
+    // Validate user ID
+    const idValidation = validateUserId(id);
+    if (!idValidation.isValid) {
+      return errorResponse(res, idValidation.error, 400);
     }
 
-    // Verificar si el usuario existe
-    const user = await userService.findById(id);
+    // Check if user exists
+    const user = await userService.findById(idValidation.userId);
     if (!user) {
-      return res.status(404).json({ 
-        success: false,
-        error: "Usuario no encontrado" 
-      });
+      return notFoundResponse(res, 'Usuario');
     }
 
-    // Preparar datos para actualizar
+    // Prepare update data
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (email !== undefined) {
-      // Validar que el nuevo email no esté en uso por otro usuario
+      // Validate that new email is not in use by another user
       if (email !== user.email) {
+        const emailValidation = validateEmail(email);
+        if (!emailValidation.isValid) {
+          return errorResponse(res, emailValidation.error, 400);
+        }
+
         const emailExists = await userService.findByEmail(email);
         if (emailExists) {
-          return res.status(400).json({ 
-            success: false,
-            error: "El email ya está en uso por otro usuario" 
-          });
+          return errorResponse(res, 'El email ya está en uso por otro usuario', 400);
         }
         updateData.email = email;
       }
     }
     if (role !== undefined) {
-      // Validar que el rol sea válido
+      // Validate that role is valid
       if (!['user', 'admin'].includes(role)) {
-        return res.status(400).json({ 
-          success: false,
-          error: "El rol debe ser 'user' o 'admin'" 
-        });
+        return errorResponse(res, "El rol debe ser 'user' o 'admin'", 400);
       }
       updateData.role = role;
     }
@@ -627,168 +552,109 @@ const updateUserByAdmin = async (req, res) => {
     if (fecha_nacimiento !== undefined) updateData.fecha_nacimiento = fecha_nacimiento;
     if (direccion !== undefined) updateData.direccion = direccion;
 
-    // Si hay una nueva contraseña, validarla y encriptarla
+    // If there's a new password, validate and hash it
     if (password) {
       const passwordValidation = validatePassword(password);
       if (!passwordValidation.isValid) {
-        return res.status(400).json({ 
-          success: false,
-          error: passwordValidation.message 
-        });
+        return errorResponse(res, passwordValidation.message, 400);
       }
 
-      const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(password, salt);
+      updateData.password = await hashPassword(password);
     }
 
-    // Verificar que hay datos para actualizar
+    // Check if there's data to update
     if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({ 
-        success: false,
-        error: "No hay datos para actualizar" 
-      });
+      return errorResponse(res, 'No hay datos para actualizar', 400);
     }
 
-    // Actualizar usuario
-    const updatedUser = await userService.update(id, updateData);
+    // Update user
+    const updatedUser = await userService.update(idValidation.userId, updateData);
 
-    // Devolver respuesta exitosa con los datos actualizados (sin contraseña)
-    res.json({
-      success: true,
-      message: "Usuario actualizado exitosamente",
-      data: {
-        id: updatedUser.id,
-        name: updatedUser.name,
-        email: updatedUser.email,
-        role: updatedUser.role,
-        is_verified: updatedUser.is_verified,
-        telefono: updatedUser.telefono,
-        fecha_nacimiento: updatedUser.fecha_nacimiento,
-        direccion: updatedUser.direccion,
-        avatar: updatedUser.avatar,
-        updated_at: updatedUser.updated_at
-      }
-    });
+    // Return success response with updated data (without password)
+    const formattedUser = formatUser(updatedUser);
+    return successResponse(res, formattedUser, 'Usuario actualizado exitosamente');
+
   } catch (error) {
-    logger.error("Error al actualizar usuario:", { message: error.message });
-    res.status(500).json({ 
-      success: false,
-      error: "Error interno del servidor al actualizar el usuario" 
-    });
+    logger.error('Error al actualizar usuario:', { message: error.message });
+    return serverErrorResponse(res, error, 'Error interno del servidor al actualizar el usuario');
   }
 };
 
-// 📌 Eliminar usuario por administrador
+// Delete User by Admin
 const deleteUserByAdmin = async (req, res) => {
   try {
+    if (!requireAdmin(req, res)) return;
+
     const { id } = req.params;
 
-    // Validar que se proporcione el ID
-    if (!id) {
-      return res.status(400).json({ 
-        success: false,
-        error: "ID de usuario requerido" 
-      });
+    // Validate user ID
+    const idValidation = validateUserId(id);
+    if (!idValidation.isValid) {
+      return errorResponse(res, idValidation.error, 400);
     }
 
-    // Verificar si el usuario existe (incluyendo eliminados)
-    const user = await userService.findByIdAny(id);
+    // Check if user exists (including deleted)
+    const user = await userService.findByIdAny(idValidation.userId);
     if (!user) {
-      return res.status(404).json({ 
-        success: false,
-        error: "Usuario no encontrado" 
-      });
+      return notFoundResponse(res, 'Usuario');
     }
 
-    // Verificar si el usuario ya está eliminado
+    // Check if user is already deleted
     if (user.deleted_at) {
-      return res.status(400).json({ 
-        success: false,
-        error: "El usuario ya está eliminado" 
-      });
+      return errorResponse(res, 'El usuario ya está eliminado', 400);
     }
 
-    // Prevenir que un administrador se elimine a sí mismo
-    if (req.user && req.user.id === id) {
-      return res.status(400).json({ 
-        success: false,
-        error: "No puedes eliminar tu propia cuenta" 
-      });
+    // Prevent admin from deleting themselves
+    if (req.user && req.user.id === idValidation.userId) {
+      return errorResponse(res, 'No puedes eliminar tu propia cuenta', 400);
     }
 
-    // Eliminar usuario (soft delete)
-    await userService.delete(id);
+    // Delete user (soft delete)
+    await userService.delete(idValidation.userId);
 
-    logger.info("Usuario eliminado por administrador (soft delete)", { userId: id });
-    res.json({
-      success: true,
-      message: "Usuario eliminado exitosamente"
-    });
+    logger.info('Usuario eliminado por administrador (soft delete)', { userId: idValidation.userId });
+    return successResponse(res, null, 'Usuario eliminado exitosamente');
+
   } catch (error) {
-    logger.error("Error al eliminar usuario:", { message: error.message });
-    res.status(500).json({ 
-      success: false,
-      error: "Error interno del servidor al eliminar el usuario" 
-    });
+    logger.error('Error al eliminar usuario:', { message: error.message });
+    return serverErrorResponse(res, error, 'Error interno del servidor al eliminar el usuario');
   }
 };
 
-// 📌 Restaurar usuario por administrador
+// Restore User by Admin
 const restoreUserByAdmin = async (req, res) => {
   try {
+    if (!requireAdmin(req, res)) return;
+
     const { id } = req.params;
 
-    // Validar que se proporcione el ID
-    if (!id) {
-      return res.status(400).json({ 
-        success: false,
-        error: "ID de usuario requerido" 
-      });
+    // Validate user ID
+    const idValidation = validateUserId(id);
+    if (!idValidation.isValid) {
+      return errorResponse(res, idValidation.error, 400);
     }
 
-    // Verificar si el usuario existe (incluyendo eliminados)
-    const user = await userService.findByIdAny(id);
+    // Check if user exists (including deleted)
+    const user = await userService.findByIdAny(idValidation.userId);
     if (!user) {
-      return res.status(404).json({ 
-        success: false,
-        error: "Usuario no encontrado" 
-      });
+      return notFoundResponse(res, 'Usuario');
     }
 
-    // Verificar si el usuario está eliminado
+    // Check if user is deleted
     if (!user.deleted_at) {
-      return res.status(400).json({ 
-        success: false,
-        error: "El usuario no está eliminado" 
-      });
+      return errorResponse(res, 'El usuario no está eliminado', 400);
     }
 
-    // Restaurar usuario (restore soft delete)
-    const restoredUser = await userService.restore(id);
+    // Restore user (restore soft delete)
+    const restoredUser = await userService.restore(idValidation.userId);
 
-    logger.info("Usuario restaurado por administrador", { userId: id });
-    res.json({
-      success: true,
-      message: "Usuario restaurado exitosamente",
-      data: {
-        id: restoredUser.id,
-        name: restoredUser.name,
-        email: restoredUser.email,
-        role: restoredUser.role,
-        is_verified: restoredUser.is_verified,
-        telefono: restoredUser.telefono,
-        fecha_nacimiento: restoredUser.fecha_nacimiento,
-        direccion: restoredUser.direccion,
-        avatar: restoredUser.avatar,
-        deleted_at: restoredUser.deleted_at
-      }
-    });
+    logger.info('Usuario restaurado por administrador', { userId: idValidation.userId });
+    const formattedUser = formatUser(restoredUser);
+    return successResponse(res, formattedUser, 'Usuario restaurado exitosamente');
+
   } catch (error) {
-    logger.error("Error al restaurar usuario:", { message: error.message });
-    res.status(500).json({ 
-      success: false,
-      error: "Error interno del servidor al restaurar el usuario" 
-    });
+    logger.error('Error al restaurar usuario:', { message: error.message });
+    return serverErrorResponse(res, error, 'Error interno del servidor al restaurar el usuario');
   }
 };
 

@@ -1,0 +1,74 @@
+// utils/imageHelper.js
+// Helper functions for image operations with Supabase Storage
+
+import { supabase } from '../database.js';
+import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
+import logger from './logger.js';
+
+const BUCKET_NAME = 'shop-core-bucket';
+
+/**
+ * Upload an image to Supabase Storage
+ * @param {object} file - Multer file object
+ * @returns {Promise<string>} - Public URL of the uploaded image
+ * @throws {Error} - If upload fails
+ */
+export const uploadImage = async (file) => {
+  const fileName = `${uuidv4()}-${Date.now()}${path.extname(file.originalname)}`;
+  const filePath = fileName;
+
+  try {
+    // Upload file to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        cacheControl: '3600'
+      });
+
+    if (error) {
+      throw new Error(`Error subiendo imagen: ${error.message}`);
+    }
+
+    // Get public URL
+    const { data: publicData } = supabase.storage
+      .from(BUCKET_NAME)
+      .getPublicUrl(filePath);
+    
+    return publicData.publicUrl;
+    
+  } catch (error) {
+    logger.error('Error en uploadImage:', { message: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Delete an image from Supabase Storage
+ * @param {string} imageUrl - Public URL of the image to delete
+ * @returns {Promise<void>}
+ */
+export const deleteImage = async (imageUrl) => {
+  try {
+    // Extract file path from URL
+    const url = new URL(imageUrl);
+    const pathParts = url.pathname.split('/');
+    const fileName = pathParts[pathParts.length - 1];
+    
+    // Delete file from Supabase Storage
+    const { error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove([fileName]);
+
+    if (error) {
+      logger.error('Error eliminando imagen:', { message: error.message });
+      throw error;
+    }
+    
+  } catch (error) {
+    logger.error('Error eliminando imagen:', { message: error.message });
+    throw error;
+  }
+};
+

@@ -1,18 +1,17 @@
 import { productService } from '../models/productModel.js';
 import { supabase } from '../database.js';
 import multer from 'multer';
-import { v4 as uuidv4 } from 'uuid';
-import path from 'path';
 import dotenv from 'dotenv';
 import logger from '../utils/logger.js';
-import { validateProductId, validatePrice, validateStock, validateRequiredFields } from '../utils/productValidators.js';
+import { validateProductId, validatePrice, validateStock, validateProductRequiredFields } from '../utils/validators.js';
 import { buildProductQuery } from '../utils/productQueryBuilder.js';
+import { uploadImage, deleteImage } from '../utils/imageHelper.js';
+import { successResponse, errorResponse, notFoundResponse, serverErrorResponse } from '../utils/responseHelper.js';
+import { formatProduct } from '../utils/formatters.js';
 
 dotenv.config();
 
-// Configuración del Storage - usando SDK de Supabase
-
-// Configurar multer para subida de imágenes
+// Configure multer for image upload
 const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
@@ -29,60 +28,7 @@ const upload = multer({
   }
 });
 
-// Función para subir imagen a Supabase Storage usando SDK
-const uploadImageToSupabase = async (file) => {
-  const fileName = `${uuidv4()}-${Date.now()}${path.extname(file.originalname)}`;
-  const filePath = fileName;
-
-  try {
-    // Usar el SDK de Supabase con el nombre del bucket
-    const { data, error } = await supabase.storage
-      .from('shop-core-bucket')  // Nombre del bucket
-      .upload(filePath, file.buffer, {
-        contentType: file.mimetype,
-        cacheControl: '3600'
-      });
-
-    if (error) {
-      throw new Error(`Error subiendo imagen: ${error.message}`);
-    }
-
-    // Obtener URL pública
-    const { data: publicData } = supabase.storage
-      .from('shop-core-bucket')  // Nombre correcto del bucket
-      .getPublicUrl(filePath);
-    
-    return publicData.publicUrl;
-    
-  } catch (error) {
-    logger.error('Error en uploadImageToSupabase:', { message: error.message });
-    throw error;
-  }
-};
-
-// Función para eliminar imagen de Supabase Storage usando SDK
-const deleteImageFromSupabase = async (imageUrl) => {
-  try {
-    // Extraer el path del archivo de la URL
-    const url = new URL(imageUrl);
-    const pathParts = url.pathname.split('/');
-    const fileName = pathParts[pathParts.length - 1];
-    
-    // Usar el SDK de Supabase para eliminar
-    const { error } = await supabase.storage
-      .from('shop-core-bucket')  // Nombre correcto del bucket
-      .remove([fileName]);
-
-    if (error) {
-      logger.error('Error eliminando imagen:', { message: error.message });
-    }
-    
-  } catch (error) {
-    logger.error('Error eliminando imagen:', { message: error.message });
-  }
-};
-
-// Obtener todos los productos (público)           
+// Get all products (public)
 export const getAllProducts = async (req, res) => {
   try {
     const { page, limit, category, search, minPrice, maxPrice, sortBy, sortOrder } = req.query;
@@ -96,101 +42,76 @@ export const getAllProducts = async (req, res) => {
       search,
       minPrice,
       maxPrice,
-      isActive: true // Solo productos activos
+      isActive: true // Only active products
     });
 
-    res.json({
-      success: true,
-      data: result.data,
+    return successResponse(res, {
+      products: result.data,
       pagination: result.pagination,
       filters: { category, search, minPrice, maxPrice }
     });
   } catch (error) {
     logger.error('Error obteniendo productos:', { message: error.message });
-    res.status(500).json({
-      success: false,
-      message: 'Error interno del servidor',
-      error: error.message
-    });
+    return serverErrorResponse(res, error);
   }
 };
 
-// Obtener producto por ID (público)
+// Get product by ID (public)
 export const getProductById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validar ID
+    // Validate ID
     const idValidation = validateProductId(id);
     if (!idValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: idValidation.error
-      });
+      return errorResponse(res, idValidation.error, 400);
     }
 
     const product = await productService.findById(idValidation.productId);
 
     if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Producto no encontrado'
-      });
+      return notFoundResponse(res, 'Producto');
     }
 
-    res.json({
-      success: true,
-      data: product
-    });
+    const formattedProduct = formatProduct(product);
+    return successResponse(res, formattedProduct);
+
   } catch (error) {
     logger.error('Error obteniendo producto:', { message: error.message });
-    res.status(500).json({
-      success: false,
-      message: 'Error interno del servidor',
-      error: error.message
-    });
+    return serverErrorResponse(res, error);
   }
 };
 
-// Crear nuevo producto (solo admin)
+// Create new product (admin only)
 export const createProduct = async (req, res) => {
   try {
     const { name, description, price, stock, category, isActive } = req.body;
 
-    // Validar campos requeridos
-    const requiredValidation = validateRequiredFields({ name, description, price, category });
+    // Validate required fields
+    const requiredValidation = validateProductRequiredFields({ name, description, price, category });
     if (!requiredValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: `Faltan campos requeridos: ${requiredValidation.missingFields.join(', ')}`
-      });
+      return errorResponse(res, `Faltan campos requeridos: ${requiredValidation.missingFields.join(', ')}`, 400);
     }
 
-    // Validar precio
+    // Validate price
     const priceValidation = validatePrice(price);
     if (!priceValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: priceValidation.error
-      });
+      return errorResponse(res, priceValidation.error, 400);
     }
 
-    // Validar stock (permitir vacío, se usa 0 por defecto)
+    // Validate stock (allow empty, defaults to 0)
     const stockValidation = validateStock(stock, true);
     if (!stockValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: stockValidation.error
-      });
+      return errorResponse(res, stockValidation.error, 400);
     }
 
-    // Procesar imagen si se subió
+    // Process image if uploaded
     let imageUrl = '';
     if (req.file) {
-      imageUrl = await uploadImageToSupabase(req.file);
+      imageUrl = await uploadImage(req.file);
     }
 
-    // Crear producto
+    // Create product
     const productData = {
       name: name.trim(),
       description: description.trim(),
@@ -202,162 +123,124 @@ export const createProduct = async (req, res) => {
     };
 
     const newProduct = await productService.create(productData);
+    const formattedProduct = formatProduct(newProduct);
 
-    res.status(201).json({
-      success: true,
-      message: 'Producto creado exitosamente',
-      data: newProduct
-    });
+    return successResponse(res, formattedProduct, 'Producto creado exitosamente', 201);
+
   } catch (error) {
     logger.error('Error creando producto:', { message: error.message });
-    res.status(500).json({
-      success: false,
-      message: 'Error interno del servidor',
-      error: error.message
-    });
+    return serverErrorResponse(res, error);
   }
 };
 
-// Actualizar producto (solo admin)
+// Update product (admin only)
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, price, stock, category, isActive, is_active } = req.body;
 
-    // Validar ID
+    // Validate ID
     const idValidation = validateProductId(id);
     if (!idValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: idValidation.error
-      });
+      return errorResponse(res, idValidation.error, 400);
     }
 
-    // Buscar producto existente
-    const { data: existingProduct, error: findError } = await supabase
-      .from('products')
-      .select('*')
-      .eq('id', idValidation.productId)
-      .maybeSingle();
-
-    if (findError) throw findError;
+    // Find existing product
+    const existingProduct = await productService.findById(idValidation.productId);
     if (!existingProduct) {
-      return res.status(404).json({
-        success: false,
-        message: 'Producto no encontrado'
-      });
+      return notFoundResponse(res, 'Producto');
     }
 
-    // Preparar datos de actualización
+    // Prepare update data
     const updateData = {};
 
     if (name) updateData.name = name.trim();
     if (description) updateData.description = description.trim();
     if (category) updateData.category = category.trim();
-
-    // Manejar isActive
+    
+    // Handle isActive
     const isActiveValue = isActive !== undefined ? isActive : is_active;
     if (isActiveValue !== undefined) {
       updateData.is_active = isActiveValue === 'true' || isActiveValue === true;
     }
 
-    // Validar y actualizar precio
+    // Validate and update price
     if (price !== undefined && price !== '') {
       const priceValidation = validatePrice(price);
       if (!priceValidation.isValid) {
-        return res.status(400).json({
-          success: false,
-          message: priceValidation.error
-        });
+        return errorResponse(res, priceValidation.error, 400);
       }
       updateData.price = priceValidation.price;
     }
 
-    // Validar y actualizar stock
+    // Validate and update stock
     if (stock !== undefined && stock !== '') {
       const stockValidation = validateStock(stock, true);
       if (!stockValidation.isValid) {
-        return res.status(400).json({
-          success: false,
-          message: stockValidation.error
-        });
+        return errorResponse(res, stockValidation.error, 400);
       }
       updateData.stock = stockValidation.stock;
       
-      // Si el stock llega a 0, desactivar el producto automáticamente
+      // If stock reaches 0, deactivate product automatically
       if (stockValidation.stock === 0) {
         updateData.is_active = false;
       }
     }
 
-    // Procesar nueva imagen si se subió
+    // Process new image if uploaded
     if (req.file) {
       if (existingProduct.image) {
-        await deleteImageFromSupabase(existingProduct.image);
+        try {
+          await deleteImage(existingProduct.image);
+        } catch (error) {
+          logger.warn('Error eliminando imagen anterior:', { message: error.message });
+        }
       }
-      updateData.image = await uploadImageToSupabase(req.file);
+      updateData.image = await uploadImage(req.file);
     }
 
-    // Actualizar producto
+    // Update product
     const updatedProduct = await productService.update(idValidation.productId, updateData);
+    const formattedProduct = formatProduct(updatedProduct);
 
-    res.json({
-      success: true,
-      message: 'Producto actualizado exitosamente',
-      data: updatedProduct
-    });
+    return successResponse(res, formattedProduct, 'Producto actualizado exitosamente');
+
   } catch (error) {
     logger.error('Error actualizando producto:', { message: error.message });
-    res.status(500).json({
-      success: false,
-      message: 'Error interno del servidor',
-      error: error.message
-    });
+    return serverErrorResponse(res, error);
   }
 };
 
-// Eliminar producto (solo admin) - Soft delete
+// Delete product (admin only) - Soft delete
 export const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Validar ID
+    // Validate ID
     const idValidation = validateProductId(id);
     if (!idValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: idValidation.error
-      });
+      return errorResponse(res, idValidation.error, 400);
     }
     
-    // Verificar si el producto existe
+    // Verify if product exists
     const existingProduct = await productService.findById(idValidation.productId);
     
     if (!existingProduct) {
-      return res.status(404).json({
-        success: false,
-        message: 'Producto no encontrado'
-      });
+      return notFoundResponse(res, 'Producto');
     }
     
-    // Eliminar producto (soft delete)
+    // Delete product (soft delete)
     await productService.delete(idValidation.productId);
     
-    res.json({
-      success: true,
-      message: 'Producto eliminado exitosamente'
-    });
+    return successResponse(res, null, 'Producto eliminado exitosamente');
+
   } catch (error) {
     logger.error('Error eliminando producto:', { message: error.message });
-    res.status(500).json({
-      success: false,
-      message: 'Error interno del servidor',
-      error: error.message
-    });
+    return serverErrorResponse(res, error);
   }
 };
 
-// Obtener todas las categorías (público)
+// Get all categories (public)
 export const getCategories = async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -367,54 +250,39 @@ export const getCategories = async (req, res) => {
 
     if (error) throw error;
 
-    // Obtener categorías únicas
+    // Get unique categories
     const categories = [...new Set(data.map(item => item.category))].filter(Boolean);
 
-    res.json({
-      success: true,
-      data: categories
-    });
+    return successResponse(res, categories);
+
   } catch (error) {
     logger.error('Error obteniendo categorías:', { message: error.message });
-    res.status(500).json({
-      success: false,
-      message: 'Error interno del servidor',
-      error: error.message
-    });
+    return serverErrorResponse(res, error);
   }
 };
 
-// Actualizar stock (solo admin)
+// Update stock (admin only)
 export const updateStock = async (req, res) => {
   try {
     const { id } = req.params;
     const { stock, operation } = req.body;
 
-    // Validar ID
+    // Validate ID
     const idValidation = validateProductId(id);
     if (!idValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: idValidation.error
-      });
+      return errorResponse(res, idValidation.error, 400);
     }
 
-    // Validar stock
+    // Validate stock
     const stockValidation = validateStock(stock);
     if (!stockValidation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: stockValidation.error
-      });
+      return errorResponse(res, stockValidation.error, 400);
     }
 
-    // Verificar si el producto existe
+    // Verify if product exists
     const existingProduct = await productService.findById(idValidation.productId);
     if (!existingProduct) {
-      return res.status(404).json({
-        success: false,
-        message: 'Producto no encontrado'
-      });
+      return notFoundResponse(res, 'Producto');
     }
 
     let newStock;
@@ -423,34 +291,26 @@ export const updateStock = async (req, res) => {
     } else if (operation === 'subtract') {
       newStock = Math.max(0, existingProduct.stock - stockValidation.stock);
     } else {
-      newStock = stockValidation.stock; // Establecer stock absoluto
+      newStock = stockValidation.stock; // Set absolute stock
     }
 
-    // Actualizar stock
+    // Update stock
     const updatedProduct = await productService.update(idValidation.productId, { stock: newStock });
+    const formattedProduct = formatProduct(updatedProduct);
 
-    res.json({
-      success: true,
-      message: 'Stock actualizado exitosamente',
-      data: {
-        id: updatedProduct.id,
-        name: updatedProduct.name,
-        previousStock: existingProduct.stock,
-        newStock: updatedProduct.stock,
-        operation: operation || 'set'
-      }
-    });
+    return successResponse(res, {
+      ...formattedProduct,
+      previousStock: existingProduct.stock,
+      operation: operation || 'set'
+    }, 'Stock actualizado exitosamente');
+
   } catch (error) {
     logger.error('Error actualizando stock:', { message: error.message });
-    res.status(500).json({
-      success: false,
-      message: 'Error interno del servidor',
-      error: error.message
-    });
+    return serverErrorResponse(res, error);
   }
 };
 
-// Obtener todos los productos para admin (incluye inactivos)
+// Get all products for admin (includes inactive)
 export const getAllProductsAdmin = async (req, res) => {
   try {
     const { page, limit, category, search, isActive, sortBy, sortOrder } = req.query;
@@ -462,10 +322,10 @@ export const getAllProductsAdmin = async (req, res) => {
       sortOrder,
       category,
       search,
-      isActive: isActive !== undefined ? isActive === 'true' : null // Todos los productos
+      isActive: isActive !== undefined ? isActive === 'true' : null // All products
     });
 
-    // Obtener estadísticas (solo para admin)
+    // Get statistics (admin only)
     const { data: statsData, error: statsError } = await supabase
       .from('products')
       .select('is_active, stock');
@@ -479,22 +339,18 @@ export const getAllProductsAdmin = async (req, res) => {
       lowStock: statsData.filter(p => p.stock < 5).length
     };
 
-    res.json({
-      success: true,
-      data: result.data,
+    return successResponse(res, {
+      products: result.data,
       pagination: result.pagination,
       stats,
       filters: { category, search, isActive }
     });
+
   } catch (error) {
     logger.error('Error obteniendo productos admin:', { message: error.message });
-    res.status(500).json({
-      success: false,
-      message: 'Error interno del servidor',
-      error: error.message
-    });
+    return serverErrorResponse(res, error);
   }
 };
 
-// Export del middleware de upload
-export { upload }; 
+// Export upload middleware
+export { upload };

@@ -3,41 +3,35 @@ import { orderService } from '../models/orderModel.js';
 import { cartService } from '../models/cartModel.js';
 import { supabase } from '../database.js';
 import logger from '../utils/logger.js';
+import { requireAuth } from '../utils/authHelper.js';
+import { successResponse, errorResponse, notFoundResponse, serverErrorResponse } from '../utils/responseHelper.js';
+import { validateShippingAddress } from '../utils/validators.js';
 
-// Función auxiliar para verificar autenticación
-function requireAuth(req, res) {
-  if (!req.user) {
-    res.status(401).json({
-      success: false,
-      message: 'Debes iniciar sesión para procesar el pago.'
-    });
-    return false;
-  }
-  return true;
-}
-
-// Iniciar proceso de pago
+// Initiate payment process
 export const initiatePayment = async (req, res) => {
   try {
     if (!requireAuth(req, res)) return;
 
     const { shippingAddress } = req.body;
     
-    // Obtener carrito del usuario
+    // Validate shipping address
+    const addressValidation = validateShippingAddress(shippingAddress);
+    if (!addressValidation.isValid) {
+      return errorResponse(res, addressValidation.error, 400);
+    }
+    
+    // Get user cart
     const cart = await cartService.findByUserId(req.user.id);
     if (!cart || !cart.cart_items || cart.cart_items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'El carrito está vacío.'
-      });
+      return errorResponse(res, 'El carrito está vacío.', 400);
     }
 
-    // Calcular total
+    // Calculate total
     const totalAmount = cart.cart_items.reduce((acc, item) => 
       acc + (item.price * item.quantity), 0
     );
 
-    // Crear orden
+    // Create order
     const order = await orderService.create({
       userId: req.user.id,
       totalAmount,
@@ -46,7 +40,7 @@ export const initiatePayment = async (req, res) => {
       paymentStatus: 'pending'
     });
 
-    // Crear items de orden
+    // Create order items
     const orderItems = cart.cart_items.map(item => ({
       productId: item.product_id,
       productName: item.products?.name || '',
@@ -56,15 +50,12 @@ export const initiatePayment = async (req, res) => {
 
     await orderService.createOrderItems(order.id, orderItems);
 
-    // Crear transacción en Transbank
+    // Create Transbank transaction
     const sessionId = `session_${req.user.id}_${Date.now()}`;
     
-    // Validar que FRONTEND_URL esté configurado
+    // Validate that FRONTEND_URL is configured
     if (!process.env.FRONTEND_URL) {
-      return res.status(500).json({
-        success: false,
-        message: 'Error de configuración: FRONTEND_URL no está configurado'
-      });
+      return serverErrorResponse(res, new Error('FRONTEND_URL no está configurado'), 'Error de configuración: FRONTEND_URL no está configurado');
     }
     
     const returnUrl = `${process.env.FRONTEND_URL}/payment/return`;
@@ -76,51 +67,42 @@ export const initiatePayment = async (req, res) => {
       returnUrl
     );
 
-    // Actualizar orden con token de Transbank
+    // Update order with Transbank token
     await orderService.updateTransbankToken(order.id, transbankResponse.token);
 
-    // Limpiar carrito
+    // Clear cart
     await cartService.clearCart(cart.id);
 
-    // Construir la URL completa con el token
+    // Build full URL with token
     const fullTransbankUrl = `${transbankResponse.url}?token_ws=${transbankResponse.token}`;
 
-    return res.json({
-      success: true,
-      data: {
-        orderId: order.id,
-        orderNumber: order.order_number,
-        amount: totalAmount,
-        transbankUrl: fullTransbankUrl,
-        transbankToken: transbankResponse.token
-      }
+    return successResponse(res, {
+      orderId: order.id,
+      orderNumber: order.order_number,
+      amount: totalAmount,
+      transbankUrl: fullTransbankUrl,
+      transbankToken: transbankResponse.token
     });
 
   } catch (error) {
     logger.error('Error initiating payment:', { message: error.message });
-    return res.status(500).json({
-      success: false,
-      message: 'Error al procesar el pago: ' + error.message
-    });
+    return serverErrorResponse(res, error, 'Error al procesar el pago');
   }
 };
 
-// Confirmar pago (callback de Transbank)
+// Confirm payment (Transbank callback)
 export const confirmPayment = async (req, res) => {
   try {
     const { token_ws } = req.body;
 
     if (!token_ws) {
-      return res.status(400).json({
-        success: false,
-        message: 'Token de transacción requerido.'
-      });
+      return errorResponse(res, 'Token de transacción requerido.', 400);
     }
 
-    // Confirmar transacción en Transbank
+    // Confirm transaction in Transbank
     const transbankResponse = await transbankService.confirmTransaction(token_ws);
 
-    // Buscar orden por token
+    // Find order by token
     const { data: orders, error } = await supabase
       .from('orders')
       .select('*')
@@ -128,13 +110,10 @@ export const confirmPayment = async (req, res) => {
       .single();
 
     if (error || !orders) {
-      return res.status(404).json({
-        success: false,
-        message: 'Orden no encontrada.'
-      });
+      return notFoundResponse(res, 'Orden');
     }
 
-    // Actualizar estado de la orden
+    // Update order status
     const paymentStatus = transbankResponse.status === 'AUTHORIZED' ? 'paid' : 'failed';
     await orderService.updatePaymentStatus(
       orders.id, 
@@ -146,91 +125,60 @@ export const confirmPayment = async (req, res) => {
       await orderService.updateStatus(orders.id, 'confirmed');
     }
 
-    return res.json({
-      success: true,
-      data: {
-        orderId: orders.id,
-        orderNumber: orders.order_number,
-        status: transbankResponse.status,
-        paymentStatus,
-        amount: transbankResponse.amount,
-        authorizationCode: transbankResponse.authorization_code
-      }
+    return successResponse(res, {
+      orderId: orders.id,
+      orderNumber: orders.order_number,
+      status: transbankResponse.status,
+      paymentStatus,
+      amount: transbankResponse.amount,
+      authorizationCode: transbankResponse.authorization_code
     });
 
   } catch (error) {
     logger.error('Error confirming payment:', { message: error.message });
     
-    // Manejar diferentes tipos de errores
+    // Handle different types of errors
     if (error.message.includes('aborted')) {
-      return res.status(400).json({
-        success: false,
-        message: 'El pago fue cancelado o abortado por el usuario.',
-        errorType: 'payment_aborted'
-      });
+      return errorResponse(res, 'El pago fue cancelado o abortado por el usuario.', 400);
     } else if (error.message.includes('Invalid status')) {
-      return res.status(400).json({
-        success: false,
-        message: 'La transacción no está en un estado válido para confirmar.',
-        errorType: 'invalid_transaction_status'
-      });
+      return errorResponse(res, 'La transacción no está en un estado válido para confirmar.', 400);
     } else {
-      return res.status(500).json({
-        success: false,
-        message: 'Error al confirmar el pago: ' + error.message,
-        errorType: 'confirmation_error'
-      });
+      return serverErrorResponse(res, error, 'Error al confirmar el pago');
     }
   }
 };
 
-// Obtener estado de pago
+// Get payment status
 export const getPaymentStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
 
     const order = await orderService.findById(orderId);
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Orden no encontrada.'
-      });
+      return notFoundResponse(res, 'Orden');
     }
+
+    const responseData = {
+      orderId: order.id,
+      orderNumber: order.order_number,
+      paymentStatus: order.payment_status
+    };
 
     if (order.transbank_token) {
       const transbankStatus = await transbankService.getTransactionStatus(order.transbank_token);
-      
-      return res.json({
-        success: true,
-        data: {
-          orderId: order.id,
-          orderNumber: order.order_number,
-          paymentStatus: order.payment_status,
-          transbankStatus: transbankStatus.status,
-          amount: transbankStatus.amount
-        }
-      });
+      responseData.transbankStatus = transbankStatus.status;
+      responseData.amount = transbankStatus.amount;
     }
 
-    return res.json({
-      success: true,
-      data: {
-        orderId: order.id,
-        orderNumber: order.order_number,
-        paymentStatus: order.payment_status
-      }
-    });
+    return successResponse(res, responseData);
 
   } catch (error) {
     logger.error('Error getting payment status:', { message: error.message });
-    return res.status(500).json({
-      success: false,
-      message: 'Error al obtener el estado del pago: ' + error.message
-    });
+    return serverErrorResponse(res, error, 'Error al obtener el estado del pago');
   }
 };
 
-// Anular pago
+// Refund payment
 export const refundPayment = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -238,17 +186,11 @@ export const refundPayment = async (req, res) => {
 
     const order = await orderService.findById(orderId);
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Orden no encontrada.'
-      });
+      return notFoundResponse(res, 'Orden');
     }
 
     if (!order.transbank_token) {
-      return res.status(400).json({
-        success: false,
-        message: 'Esta orden no tiene una transacción de Transbank.'
-      });
+      return errorResponse(res, 'Esta orden no tiene una transacción de Transbank.', 400);
     }
 
     const refundAmount = amount || order.total_amount;
@@ -257,24 +199,18 @@ export const refundPayment = async (req, res) => {
       refundAmount
     );
 
-    // Actualizar estado de la orden
+    // Update order status
     await orderService.updatePaymentStatus(order.id, 'refunded');
     await orderService.updateStatus(order.id, 'cancelled');
 
-    return res.json({
-      success: true,
-      data: {
-        orderId: order.id,
-        refundAmount,
-        refundResponse
-      }
+    return successResponse(res, {
+      orderId: order.id,
+      refundAmount,
+      refundResponse
     });
 
   } catch (error) {
     logger.error('Error refunding payment:', { message: error.message });
-    return res.status(500).json({
-      success: false,
-      message: 'Error al anular el pago: ' + error.message
-    });
+    return serverErrorResponse(res, error, 'Error al anular el pago');
   }
 };
