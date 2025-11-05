@@ -84,9 +84,7 @@ const allowedOrigins = isDevelopment
   : [
       ...(process.env.ALLOWED_ORIGINS?.split(',') || []),
       // Allow Vercel deployment URL if present
-      ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
-      // Allow custom domain if configured
-      ...(process.env.VERCEL ? [] : ['http://localhost:5173'])
+      ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : [])
     ];
 
 app.use(cors({

@@ -34,21 +34,40 @@ npm install
 ```
 
 3. **Configurar variables de entorno**
-Crear archivo `.env` en la raíz del proyecto:
+Crear archivo `.env` en la raíz del proyecto basándose en `.env.example`:
 ```env
-# Base de datos
-MONGO_URI=mongodb://localhost:27017/carrito_compras
+# Base de datos (Supabase)
+SUPABASE_URL=https://tu-proyecto.supabase.co
+SUPABASE_KEY=tu_supabase_key
 
 # JWT
 JWT_SECRET=tu_jwt_secret_muy_seguro
 
+# Servidor
+PORT=4005
+NODE_ENV=development
+
+# Frontend URL (para emails y redirects)
+FRONTEND_URL=http://localhost:5173
+
+# CORS (URLs permitidas separadas por comas - solo en producción)
+ALLOWED_ORIGINS=http://localhost:5173,https://tu-frontend.vercel.app
+
+# Transbank (opcional)
+TRANSBANK_API_KEY=tu_api_key
+TRANSBANK_ENVIRONMENT=integration
+TRANSBANK_COMMERCE_CODE=tu_commerce_code
+
 # Email (opcional)
 EMAIL_USER=tu_email@gmail.com
 EMAIL_PASS=tu_password_de_aplicacion
-
-# Puerto del servidor
-PORT=4005
 ```
+
+**Nota importante para despliegues:**
+- Para cada nuevo despliegue con un nombre diferente, asegúrate de actualizar:
+  - `SUPABASE_URL` y `SUPABASE_KEY` si usas una base de datos diferente
+  - `FRONTEND_URL` con la URL de tu frontend desplegado
+  - `ALLOWED_ORIGINS` con todas las URLs del frontend permitidas (separadas por comas)
 
 4. **Poblar base de datos con productos de prueba**
 ```bash

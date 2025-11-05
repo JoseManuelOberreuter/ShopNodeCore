@@ -269,6 +269,7 @@ const verifyUser = async (req, res) => {
     const user = await userService.findByEmail(decoded.email);
 
     if (!user) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       return res.status(400).send(`
         <html>
           <head>
@@ -319,7 +320,7 @@ const verifyUser = async (req, res) => {
               <div id="message" class="hidden"></div>
             </div>
 
-            <a href="http://localhost:5173" class="btn btn-secondary">Volver al Inicio</a>
+            <a href="${frontendUrl}" class="btn btn-secondary">Volver al Inicio</a>
 
             <script>
               document.getElementById('resendForm').addEventListener('submit', async function(e) {
@@ -383,6 +384,7 @@ const verifyUser = async (req, res) => {
     }
 
     if (user.is_verified) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       return res.status(200).send(`
         <html>
           <head>
@@ -401,7 +403,7 @@ const verifyUser = async (req, res) => {
               <p>Tu cuenta ya estaba confirmada anteriormente.</p>
               <p>Puedes iniciar sesión directamente.</p>
             </div>
-            <a href="http://localhost:5173" class="btn">Iniciar Sesión</a>
+            <a href="${frontendUrl}" class="btn">Iniciar Sesión</a>
           </body>
         </html>
       `);
@@ -414,6 +416,7 @@ const verifyUser = async (req, res) => {
     });
 
     // Página de éxito con redirección automática
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     res.status(200).send(`
       <html>
         <head>
@@ -431,7 +434,7 @@ const verifyUser = async (req, res) => {
               document.getElementById('countdown').textContent = countdown;
               countdown--;
               if (countdown < 0) {
-                window.location.href = 'http://localhost:5173';
+                window.location.href = '${frontendUrl}';
               }
             }
             setInterval(updateCountdown, 1000);
@@ -444,7 +447,7 @@ const verifyUser = async (req, res) => {
             <p>Tu cuenta ha sido confirmada correctamente.</p>
             <p>Ya puedes iniciar sesión y comenzar a comprar.</p>
           </div>
-          <a href="http://localhost:5173" class="btn">Iniciar Sesión Ahora</a>
+          <a href="${frontendUrl}" class="btn">Iniciar Sesión Ahora</a>
           <div class="countdown">
             Serás redirigido automáticamente en <span id="countdown">5</span> segundos...
           </div>
@@ -455,6 +458,7 @@ const verifyUser = async (req, res) => {
     logger.info("Cuenta verificada exitosamente", { userId: user.id });
   } catch (error) {
     logger.error("Error al verificar cuenta:", { message: error.message });
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     res.status(400).send(`
       <html>
         <head>
@@ -505,7 +509,7 @@ const verifyUser = async (req, res) => {
             <div id="message" class="hidden"></div>
           </div>
 
-          <a href="http://localhost:5173" class="btn btn-secondary">Volver al Inicio</a>
+          <a href="${frontendUrl}" class="btn btn-secondary">Volver al Inicio</a>
 
           <script>
             document.getElementById('resendForm').addEventListener('submit', async function(e) {

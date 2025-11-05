@@ -3,7 +3,7 @@ dotenv.config();
 
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://sjgwwuawpfnvhzfgknus.supabase.co'
+const supabaseUrl = process.env.SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_KEY
 
 // Don't throw error on import - let it fail gracefully
