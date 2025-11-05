@@ -58,6 +58,15 @@ export const initiatePayment = async (req, res) => {
 
     // Crear transacción en Transbank
     const sessionId = `session_${req.user.id}_${Date.now()}`;
+    
+    // Validar que FRONTEND_URL esté configurado
+    if (!process.env.FRONTEND_URL) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error de configuración: FRONTEND_URL no está configurado'
+      });
+    }
+    
     const returnUrl = `${process.env.FRONTEND_URL}/payment/return`;
     
     const transbankResponse = await transbankService.createTransaction(

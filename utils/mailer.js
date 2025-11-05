@@ -9,8 +9,13 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendVerificationEmail = async (email, token) => {
-  //ahora apunta al backend directamente
-  const verificationLink = `http://localhost:4005/users/verify/${token}`;
+  // Enlace apunta al frontend que manejará la verificación
+  // Usar FRONTEND_URL del .env (obligatorio en producción)
+  if (!process.env.FRONTEND_URL) {
+    throw new Error('FRONTEND_URL no está configurado en las variables de entorno');
+  }
+  const frontendUrl = process.env.FRONTEND_URL;
+  const verificationLink = `${frontendUrl}/verify-email?token=${token}`;
 
   const mailOptions = {
     from: process.env.EMAIL_USER,
@@ -62,8 +67,12 @@ const sendVerificationEmail = async (email, token) => {
 
 // 📌 Enviar correo de recuperación de contraseña
 const sendPasswordResetEmail = async (email, token) => {
-
-  const resetLink = `http://localhost:5173/resetpassword?token=${token}`;
+  // Usar FRONTEND_URL del .env (obligatorio en producción)
+  if (!process.env.FRONTEND_URL) {
+    throw new Error('FRONTEND_URL no está configurado en las variables de entorno');
+  }
+  const frontendUrl = process.env.FRONTEND_URL;
+  const resetLink = `${frontendUrl}/resetpassword?token=${token}`;
 
   const mailOptions = {
     from: process.env.EMAIL_USER, 
