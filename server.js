@@ -97,6 +97,7 @@ const allowedOrigins = isDevelopment
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests or same-origin)
+    // Also allow preflight OPTIONS requests
     if (!origin) {
       return callback(null, true);
     }
@@ -120,16 +121,20 @@ app.use(cors({
     if (isAllowed) {
       callback(null, true);
     } else {
-        logger.warn('CORS blocked origin:', origin);
+      logger.warn('CORS blocked origin:', origin);
       logger.warn('Allowed origins:', allowedOrigins);
+      // Don't block OPTIONS requests - allow them for preflight
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires', 'X-Requested-With'],
   exposedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400, // 24 hours
+  // Handle preflight requests
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
 app.use(express.json({ limit: '10mb' }));
