@@ -67,7 +67,7 @@ export const getProductById = async (req, res) => {
       return errorResponse(res, idValidation.error, 400);
     }
 
-    const product = await productService.findById(idValidation.productId);
+    const product = await productService.findById(idValidation.id);
 
     if (!product) {
       return notFoundResponse(res, 'Producto');
@@ -146,7 +146,7 @@ export const updateProduct = async (req, res) => {
     }
 
     // Find existing product
-    const existingProduct = await productService.findById(idValidation.productId);
+    const existingProduct = await productService.findById(idValidation.id);
     if (!existingProduct) {
       return notFoundResponse(res, 'Producto');
     }
@@ -200,7 +200,7 @@ export const updateProduct = async (req, res) => {
     }
 
     // Update product
-    const updatedProduct = await productService.update(idValidation.productId, updateData);
+    const updatedProduct = await productService.update(idValidation.id, updateData);
     const formattedProduct = formatProduct(updatedProduct);
 
     return successResponse(res, formattedProduct, 'Producto actualizado exitosamente');
@@ -223,14 +223,14 @@ export const deleteProduct = async (req, res) => {
     }
     
     // Verify if product exists
-    const existingProduct = await productService.findById(idValidation.productId);
+    const existingProduct = await productService.findById(idValidation.id);
     
     if (!existingProduct) {
       return notFoundResponse(res, 'Producto');
     }
     
     // Delete product (soft delete)
-    await productService.delete(idValidation.productId);
+    await productService.delete(idValidation.id);
     
     return successResponse(res, null, 'Producto eliminado exitosamente');
 
@@ -280,7 +280,7 @@ export const updateStock = async (req, res) => {
     }
 
     // Verify if product exists
-    const existingProduct = await productService.findById(idValidation.productId);
+    const existingProduct = await productService.findById(idValidation.id);
     if (!existingProduct) {
       return notFoundResponse(res, 'Producto');
     }
@@ -295,7 +295,7 @@ export const updateStock = async (req, res) => {
     }
 
     // Update stock
-    const updatedProduct = await productService.update(idValidation.productId, { stock: newStock });
+    const updatedProduct = await productService.update(idValidation.id, { stock: newStock });
     const formattedProduct = formatProduct(updatedProduct);
 
     return successResponse(res, {

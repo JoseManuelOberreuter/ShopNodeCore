@@ -151,7 +151,7 @@ export const validateProductExists = async (productId) => {
     };
   }
 
-  const product = await productService.findById(idValidation.productId);
+  const product = await productService.findById(idValidation.id);
   
   if (!product) {
     return {
