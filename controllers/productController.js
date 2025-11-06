@@ -300,8 +300,8 @@ export const updateStock = async (req, res) => {
 
     return successResponse(res, {
       ...formattedProduct,
-      previousStock: existingProduct.stock,
-      operation: operation || 'set'
+        previousStock: existingProduct.stock,
+        operation: operation || 'set'
     }, 'Stock actualizado exitosamente');
 
   } catch (error) {
@@ -353,4 +353,4 @@ export const getAllProductsAdmin = async (req, res) => {
 };
 
 // Export upload middleware
-export { upload };
+export { upload }; 

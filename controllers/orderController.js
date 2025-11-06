@@ -97,7 +97,7 @@ export const getUserOrders = async (req, res) => {
     const pagination = calculatePagination(page, limit, totalOrders, paginatedOrders.length);
 
     return successResponse(res, {
-      orders: formattedOrders,
+        orders: formattedOrders,
       pagination
     });
 
@@ -202,10 +202,10 @@ export const cancelOrder = async (req, res) => {
     await orderService.updateStatus(order.id, 'cancelled');
 
     return successResponse(res, {
-      orderId: order.id,
-      orderNumber: order.order_number,
-      status: 'cancelled',
-      refundProcessed: order.payment_status === 'paid'
+        orderId: order.id,
+        orderNumber: order.order_number,
+        status: 'cancelled',
+        refundProcessed: order.payment_status === 'paid'
     }, 'Orden cancelada exitosamente');
 
   } catch (error) {
@@ -249,7 +249,7 @@ export const getAllOrders = async (req, res) => {
     const pagination = calculatePagination(page, limit, totalOrders, paginatedOrders.length);
 
     return successResponse(res, {
-      orders: formattedOrders,
+        orders: formattedOrders,
       pagination
     });
 
@@ -293,10 +293,10 @@ export const updateOrderStatus = async (req, res) => {
     }
 
     return successResponse(res, {
-      orderId: updatedOrder.id,
-      orderNumber: updatedOrder.order_number,
-      status: updatedOrder.status,
-      updatedAt: updatedOrder.updated_at
+        orderId: updatedOrder.id,
+        orderNumber: updatedOrder.order_number,
+        status: updatedOrder.status,
+        updatedAt: updatedOrder.updated_at
     }, 'Estado de orden actualizado exitosamente');
 
   } catch (error) {
@@ -325,7 +325,7 @@ export const getOrderStats = async (req, res) => {
 
     return successResponse(res, {
       ...stats,
-      dateRange: {
+        dateRange: {
         start: start.toISOString(),
         end: end.toISOString()
       }
@@ -389,4 +389,4 @@ export const createTestOrder = async (req, res) => {
     logger.error('Error creating test order:', { message: error.message });
     return serverErrorResponse(res, error, 'Error al crear la orden de prueba');
   }
-};
+}; 

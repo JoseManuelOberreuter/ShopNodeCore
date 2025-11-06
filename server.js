@@ -120,7 +120,7 @@ app.use(cors({
     if (isAllowed) {
       callback(null, true);
     } else {
-      logger.warn('CORS blocked origin:', origin);
+        logger.warn('CORS blocked origin:', origin);
       logger.warn('Allowed origins:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }

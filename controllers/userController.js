@@ -148,7 +148,11 @@ const loginUser = async (req, res) => {
     // Generate JWT token
     const token = generateAuthToken(user);
 
-    return successResponse(res, { token }, 'Login exitoso');
+    return res.status(200).json({
+      success: true,
+      message: 'Login exitoso',
+      token: token  // Token en el nivel raíz, compatible con frontend
+    });
 
   } catch (error) {
     logger.error('Error en loginUser:', { message: error.message });
