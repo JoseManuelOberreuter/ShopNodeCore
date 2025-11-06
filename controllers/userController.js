@@ -272,10 +272,20 @@ const verifyUser = async (req, res) => {
       decoded = verifyToken(token);
     } catch (error) {
       if (error.name === 'TokenExpiredError') {
-        return errorResponse(res, 'El enlace de verificación ha expirado. Por favor, solicita uno nuevo.', 400);
+        return res.status(400).json({
+          success: false,
+          type: 'TOKEN_EXPIRED',
+          error: 'El enlace de verificación ha expirado. Por favor, solicita uno nuevo.',
+          message: 'El enlace de verificación ha expirado. Por favor, solicita uno nuevo.'
+        });
       }
       if (error.name === 'JsonWebTokenError') {
-        return errorResponse(res, 'El token de verificación no es válido.', 400);
+        return res.status(400).json({
+          success: false,
+          type: 'INVALID_TOKEN',
+          error: 'El token de verificación no es válido.',
+          message: 'El token de verificación no es válido.'
+        });
       }
       throw error;
     }
@@ -284,12 +294,24 @@ const verifyUser = async (req, res) => {
     const user = await userService.findByEmail(decoded.email);
 
     if (!user) {
-      return notFoundResponse(res, 'Usuario');
+      return res.status(404).json({
+        success: false,
+        type: 'USER_NOT_FOUND',
+        error: 'Usuario no encontrado',
+        message: 'Usuario no encontrado'
+      });
     }
 
     if (user.is_verified) {
       const formattedUser = formatUser(user);
-      return successResponse(res, formattedUser, 'La cuenta ya está verificada');
+      // Return format expected by frontend
+      return res.status(200).json({
+        success: true,
+        type: 'ALREADY_VERIFIED',
+        message: 'La cuenta ya está verificada',
+        user: formattedUser,
+        data: formattedUser
+      });
     }
 
     // Mark account as verified
@@ -300,8 +322,18 @@ const verifyUser = async (req, res) => {
 
     logger.info('Cuenta verificada exitosamente', { userId: user.id });
 
-    const formattedUser = formatUser(user);
-    return successResponse(res, formattedUser, 'Cuenta verificada exitosamente');
+    // Get updated user data
+    const updatedUser = await userService.findById(user.id);
+    const formattedUser = formatUser(updatedUser);
+    
+    // Return format expected by frontend
+    return res.status(200).json({
+      success: true,
+      type: 'VERIFIED',
+      message: 'Cuenta verificada exitosamente',
+      user: formattedUser,
+      data: formattedUser
+    });
 
   } catch (error) {
     logger.error('Error al verificar cuenta:', { message: error.message });
