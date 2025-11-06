@@ -81,34 +81,55 @@ app.use(generalLimiter);
 
 // Security: CORS configuration
 const allowedOrigins = isDevelopment
-  ? ['http://localhost:5173', 'http://localhost:3000']
+  ? ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174']
   : [
-      ...(process.env.ALLOWED_ORIGINS?.split(',') || []),
-      // Allow frontend URL if configured
+      // Always allow explicit frontend URL
       ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
-      // Allow Vercel deployment URL if present
+      // Allow common Vercel frontend URLs
+      'https://shop-vue-core.vercel.app',
+      'https://shop-vue-core-git-*.vercel.app',
+      // Allow custom origins from environment
+      ...(process.env.ALLOWED_ORIGINS?.split(',').map(origin => origin.trim()).filter(Boolean) || []),
+      // Allow Vercel deployment URL if present (for backend)
       ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : [])
     ];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
+    // Allow requests with no origin (like mobile apps or curl requests or same-origin)
     if (!origin) {
       return callback(null, true);
     }
     
-    if (allowedOrigins.indexOf(origin) !== -1 || isDevelopment) {
+    // In development, allow all localhost origins
+    if (isDevelopment) {
+      return callback(null, true);
+    }
+    
+    // Check if origin is in allowed list
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      // Support wildcard patterns for Vercel preview deployments
+      if (allowedOrigin.includes('*')) {
+        const pattern = allowedOrigin.replace(/\*/g, '.*');
+        const regex = new RegExp(`^${pattern}$`);
+        return regex.test(origin);
+      }
+      return origin === allowedOrigin;
+    });
+    
+    if (isAllowed) {
       callback(null, true);
     } else {
-      if (isDevelopment) {
-        logger.warn('CORS blocked origin:', origin);
-      }
+      logger.warn('CORS blocked origin:', origin);
+      logger.warn('Allowed origins:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400, // 24 hours
 }));
 
 app.use(express.json({ limit: '10mb' }));
