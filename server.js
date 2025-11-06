@@ -69,7 +69,7 @@ const generalLimiter = rateLimit({
 // Security: Stricter rate limiting for authentication routes
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isDevelopment ? 100 : 5, // Limit to 5 requests per windowMs in production
+  max: isDevelopment ? 100 : 20, // Limit to 5 a 20 requests per windowMs in production
   message: 'Too many authentication attempts, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,

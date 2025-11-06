@@ -54,28 +54,13 @@ export const buildProductQuery = async (options = {}) => {
   // Aplicar filtro de is_active si se especifica
   if (isActive !== null) {
     if (isActive === true) {
-      // Include products where is_active = true OR is_active IS NULL
+      // Include products where is_active is NOT false (includes true and null)
       // This treats null as active by default (common database pattern)
-      // Use .or() with PostgREST syntax: column.eq.value,column.is.null
-      query = query.or('is_active.eq.true,is_active.is.null');
+      query = query.neq('is_active', false);
     } else {
       // Only show inactive products
       query = query.eq('is_active', false);
     }
-  }
-
-  // Debug: Log query details in production
-  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
-    console.log('[ProductQueryBuilder] Query options:', {
-      isActive,
-      page: pageInt,
-      limit: limitInt,
-      offset,
-      category,
-      search,
-      minPrice,
-      maxPrice
-    });
   }
 
   // Aplicar filtros
@@ -100,55 +85,17 @@ export const buildProductQuery = async (options = {}) => {
     .order(finalSortBy, { ascending: sortOrder === 'asc' })
     .range(offset, offset + limitInt - 1);
 
-  // Debug: Log query results in production
-  if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
-    console.log('[ProductQueryBuilder] Query results:', {
-      dataLength: data?.length || 0,
-      count,
-      error: error?.message || null,
-      errorCode: error?.code || null,
-      errorDetails: error?.details || null
-    });
-
-    // If no results and filtering by isActive, check total products without filter
-    if (count === 0 && isActive === true) {
-      const { count: totalCount } = await supabase
-        .from('products')
-        .select('*', { count: 'exact', head: true });
-      
-      // Get sample of products to see their is_active values
-      const { data: sampleProducts } = await supabase
-        .from('products')
-        .select('id, name, is_active')
-        .limit(5);
-      
-      console.log('[ProductQueryBuilder] Debug info:', {
-        totalProductsInDB: totalCount,
-        sampleProducts: sampleProducts || [],
-        message: 'No products found with isActive filter. Check sample products above.'
-      });
-    }
-  }
-
-  if (error) {
-    console.error('[ProductQueryBuilder] Supabase query error:', {
-      message: error.message,
-      code: error.code,
-      details: error.details,
-      hint: error.hint
-    });
-    throw error;
-  }
+  if (error) throw error;
 
   const totalPages = Math.ceil(count / limitInt);
 
   return {
-    data: data || [],
-    count: count || 0,
+    data,
+    count,
     pagination: {
       currentPage: pageInt,
       totalPages,
-      totalProducts: count || 0,
+      totalProducts: count,
       limit: limitInt,
       hasNextPage: pageInt < totalPages,
       hasPreviousPage: pageInt > 1
