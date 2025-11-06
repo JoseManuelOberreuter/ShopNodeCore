@@ -53,7 +53,14 @@ export const buildProductQuery = async (options = {}) => {
 
   // Aplicar filtro de is_active si se especifica
   if (isActive !== null) {
-    query = query.eq('is_active', isActive);
+    if (isActive === true) {
+      // Include products where is_active is NOT false (includes true and null)
+      // This treats null as active by default (common database pattern)
+      query = query.neq('is_active', false);
+    } else {
+      // Only show inactive products
+      query = query.eq('is_active', false);
+    }
   }
 
   // Aplicar filtros
