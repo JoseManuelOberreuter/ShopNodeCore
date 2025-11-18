@@ -14,7 +14,7 @@ const options = {
         Sistema completo de carrito de compras con gestión de usuarios, productos, carritos, órdenes y pagos con Transbank.
         
         Características principales:
-        - 🔐 Autenticación JWT con roles de usuario
+        - 🔐 Autenticación JWT con roles de usuario y verificación obligatoria de correo
         - 📦 Gestión completa de productos
         - 🛒 Sistema de carrito de compras
         - 📋 Procesamiento de órdenes
@@ -410,6 +410,30 @@ const options = {
                   error: {
                     type: 'string',
                     example: 'Acceso denegado. Se requieren permisos de administrador.'
+                  }
+                }
+              }
+            }
+          }
+        },
+        VerificationRequiredError: {
+          description: 'La cuenta debe estar verificada para acceder a este recurso',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: {
+                    type: 'boolean',
+                    example: false
+                  },
+                  error: {
+                    type: 'string',
+                    example: 'Debes verificar tu cuenta antes de acceder a este recurso.'
+                  },
+                  code: {
+                    type: 'string',
+                    example: 'VERIFICATION_REQUIRED'
                   }
                 }
               }

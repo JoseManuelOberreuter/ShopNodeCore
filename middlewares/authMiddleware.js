@@ -24,13 +24,16 @@ const authMiddleware = async (req, res, next) => {
     }
 
     // Guardar la información completa del usuario en `req.user`
+    const isVerified = Boolean(user.is_verified);
+
     req.user = {
       id: user.id,
       _id: user.id, // Mantener retrocompatibilidad
       name: user.name,
       email: user.email,
       role: user.role,
-      isVerified: user.is_verified,
+      isVerified,
+      is_verified: isVerified,
       isAdmin: user.role === 'admin' // Agregar propiedad isAdmin para compatibilidad
     };
 

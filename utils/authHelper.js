@@ -14,6 +14,15 @@ export const requireAuth = (req, res) => {
     unauthorizedResponse(res, 'Debes iniciar sesión para acceder a este recurso.');
     return false;
   }
+
+  if (!req.user.isVerified) {
+    forbiddenResponse(
+      res,
+      'Debes verificar tu cuenta antes de acceder a este recurso.',
+      'VERIFICATION_REQUIRED'
+    );
+    return false;
+  }
   return true;
 };
 
@@ -24,8 +33,7 @@ export const requireAuth = (req, res) => {
  * @returns {boolean} - Returns true if admin, false otherwise
  */
 export const requireAdmin = (req, res) => {
-  if (!req.user) {
-    unauthorizedResponse(res, 'Debes iniciar sesión para acceder a este recurso.');
+  if (!requireAuth(req, res)) {
     return false;
   }
 
@@ -57,8 +65,7 @@ export const getUserId = (req) => {
  * @returns {boolean} - Returns true if user owns resource or is admin, false otherwise
  */
 export const requireOwnershipOrAdmin = (req, res, resourceUserId) => {
-  if (!req.user) {
-    unauthorizedResponse(res, 'Debes iniciar sesión para acceder a este recurso.');
+  if (!requireAuth(req, res)) {
     return false;
   }
 

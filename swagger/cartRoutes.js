@@ -98,6 +98,8 @@
  *               $ref: '#/components/schemas/CartResponse'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/VerificationRequiredError'
  *       500:
  *         description: Error interno del servidor
  *         content:
@@ -130,6 +132,8 @@
  *                   $ref: '#/components/schemas/CartSummary'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/VerificationRequiredError'
  */
 
 /**
@@ -194,6 +198,8 @@
  *                   example: "Producto no encontrado o no disponible"
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/VerificationRequiredError'
  */
 
 /**
@@ -251,6 +257,8 @@
  *                   example: "Producto no encontrado en el carrito"
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/VerificationRequiredError'
  */
 
 /**
@@ -297,6 +305,8 @@
  *               $ref: '#/components/responses/NotFoundError'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/VerificationRequiredError'
  */
 
 /**
@@ -335,4 +345,6 @@
  *               $ref: '#/components/responses/NotFoundError'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/VerificationRequiredError'
  */ 

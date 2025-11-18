@@ -61,11 +61,17 @@ export const notFoundResponse = (res, resource = 'Recurso') => {
  * @param {object} res - Express response object
  * @param {string} message - Unauthorized message (default: 'No autorizado')
  */
-export const unauthorizedResponse = (res, message = 'No autorizado') => {
-  return res.status(401).json({
+export const unauthorizedResponse = (res, message = 'No autorizado', code = null) => {
+  const response = {
     success: false,
     error: message
-  });
+  };
+
+  if (code) {
+    response.code = code;
+  }
+
+  return res.status(401).json(response);
 };
 
 /**
@@ -73,11 +79,17 @@ export const unauthorizedResponse = (res, message = 'No autorizado') => {
  * @param {object} res - Express response object
  * @param {string} message - Forbidden message (default: 'Acceso denegado')
  */
-export const forbiddenResponse = (res, message = 'Acceso denegado') => {
-  return res.status(403).json({
+export const forbiddenResponse = (res, message = 'Acceso denegado', code = null) => {
+  const response = {
     success: false,
     error: message
-  });
+  };
+
+  if (code) {
+    response.code = code;
+  }
+
+  return res.status(403).json(response);
 };
 
 /**

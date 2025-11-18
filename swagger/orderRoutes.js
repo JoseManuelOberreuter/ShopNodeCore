@@ -136,6 +136,8 @@
  *                   example: "El carrito está vacío"
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/VerificationRequiredError'
  */
 
 /**
@@ -200,6 +202,8 @@
  *                   example: "No hay productos disponibles para crear una orden de prueba"
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/VerificationRequiredError'
  */
 
 /**
@@ -239,6 +243,8 @@
  *               $ref: '#/components/schemas/OrdersResponse'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/VerificationRequiredError'
  */
 
 /**
@@ -275,6 +281,8 @@
  *         $ref: '#/components/responses/NotFoundError'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/VerificationRequiredError'
  */
 
 /**
@@ -327,6 +335,8 @@
  *         $ref: '#/components/responses/NotFoundError'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/VerificationRequiredError'
  */
 
 /**

@@ -8,4 +8,5 @@ module.exports = {
   moduleNameMapper: {
     '^../models/userModel$': '<rootDir>/__tests__/__mocks__/userModel.js'
   }
-}; 
+};
+
