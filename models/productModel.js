@@ -12,7 +12,12 @@ export const productService = {
         stock: productData.stock || 0,
         image: productData.image || '',
         category: productData.category,
-        is_active: productData.isActive !== undefined ? productData.isActive : true
+        is_active: productData.isActive !== undefined ? productData.isActive : true,
+        is_featured: productData.isFeatured !== undefined ? productData.isFeatured : false,
+        is_on_sale: productData.isOnSale !== undefined ? productData.isOnSale : false,
+        discount_percentage: productData.discountPercentage !== undefined ? productData.discountPercentage : null,
+        sale_start_date: productData.saleStartDate || null,
+        sale_end_date: productData.saleEndDate || null
       }])
       .select()
       .single();
@@ -132,6 +137,38 @@ export const productService = {
     }
 
     const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Buscar productos destacados
+  async findFeatured() {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('is_active', true)
+      .eq('is_featured', true)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Buscar productos en oferta activos (verificando fechas)
+  async findOnSale() {
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('is_active', true)
+      .eq('is_on_sale', true)
+      .lte('sale_start_date', now)
+      .gte('sale_end_date', now)
+      .not('discount_percentage', 'is', null)
+      .gt('discount_percentage', 0)
+      .lt('discount_percentage', 100)
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
     return data || [];

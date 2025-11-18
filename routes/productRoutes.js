@@ -8,6 +8,8 @@ import {
   getCategories,
   updateStock,
   getAllProductsAdmin,
+  getFeaturedProducts,
+  getOnSaleProducts,
   upload
 } from '../controllers/productController.js';
 
@@ -19,6 +21,10 @@ const router = express.Router();
 
 // 🔓 RUTAS PÚBLICAS
 router.get('/', getAllProducts);
+
+router.get('/featured', getFeaturedProducts);
+
+router.get('/offers', getOnSaleProducts);
 
 router.get('/categories', getCategories);
 

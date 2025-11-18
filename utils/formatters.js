@@ -35,7 +35,7 @@ export const formatUser = (user) => {
 export const formatProduct = (product) => {
   if (!product) return null;
 
-  return {
+  const formatted = {
     id: product.id,
     name: product.name,
     description: product.description,
@@ -47,6 +47,31 @@ export const formatProduct = (product) => {
     created_at: product.created_at,
     updated_at: product.updated_at
   };
+
+  // Add featured and sale fields if they exist
+  if (product.is_featured !== undefined) {
+    formatted.is_featured = product.is_featured;
+  }
+
+  if (product.is_on_sale !== undefined) {
+    formatted.is_on_sale = product.is_on_sale;
+  }
+
+  if (product.discount_percentage !== undefined && product.discount_percentage !== null) {
+    formatted.discount_percentage = product.discount_percentage;
+    // Calculate sale price
+    formatted.sale_price = product.price * (1 - product.discount_percentage / 100);
+  }
+
+  if (product.sale_start_date) {
+    formatted.sale_start_date = product.sale_start_date;
+  }
+
+  if (product.sale_end_date) {
+    formatted.sale_end_date = product.sale_end_date;
+  }
+
+  return formatted;
 };
 
 /**

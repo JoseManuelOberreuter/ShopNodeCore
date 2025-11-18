@@ -3,7 +3,7 @@ import { supabase } from '../database.js';
 import multer from 'multer';
 import dotenv from 'dotenv';
 import logger from '../utils/logger.js';
-import { validateProductId, validatePrice, validateStock, validateProductRequiredFields } from '../utils/validators.js';
+import { validateProductId, validatePrice, validateStock, validateProductRequiredFields, validateDiscountPercentage, validateSaleDates } from '../utils/validators.js';
 import { buildProductQuery } from '../utils/productQueryBuilder.js';
 import { uploadImage, deleteImage } from '../utils/imageHelper.js';
 import { successResponse, errorResponse, notFoundResponse, serverErrorResponse } from '../utils/responseHelper.js';
@@ -85,7 +85,7 @@ export const getProductById = async (req, res) => {
 // Create new product (admin only)
 export const createProduct = async (req, res) => {
   try {
-    const { name, description, price, stock, category, isActive } = req.body;
+    const { name, description, price, stock, category, isActive, isFeatured, isOnSale, discountPercentage, saleStartDate, saleEndDate } = req.body;
 
     // Validate required fields
     const requiredValidation = validateProductRequiredFields({ name, description, price, category });
@@ -105,6 +105,20 @@ export const createProduct = async (req, res) => {
       return errorResponse(res, stockValidation.error, 400);
     }
 
+    // Validate discount percentage if on sale
+    if (isOnSale === 'true' || isOnSale === true) {
+      const discountValidation = validateDiscountPercentage(discountPercentage);
+      if (!discountValidation.isValid) {
+        return errorResponse(res, discountValidation.error, 400);
+      }
+
+      // Validate sale dates
+      const datesValidation = validateSaleDates(saleStartDate, saleEndDate);
+      if (!datesValidation.isValid) {
+        return errorResponse(res, datesValidation.error, 400);
+      }
+    }
+
     // Process image if uploaded
     let imageUrl = '';
     if (req.file) {
@@ -119,7 +133,12 @@ export const createProduct = async (req, res) => {
       stock: stockValidation.stock || 0,
       category: category.trim(),
       image: imageUrl,
-      isActive: isActive !== undefined ? isActive === 'true' : true
+      isActive: isActive !== undefined ? isActive === 'true' : true,
+      isFeatured: isFeatured !== undefined ? (isFeatured === 'true' || isFeatured === true) : false,
+      isOnSale: isOnSale !== undefined ? (isOnSale === 'true' || isOnSale === true) : false,
+      discountPercentage: discountPercentage !== undefined && discountPercentage !== '' ? parseFloat(discountPercentage) : null,
+      saleStartDate: saleStartDate || null,
+      saleEndDate: saleEndDate || null
     };
 
     const newProduct = await productService.create(productData);
@@ -137,7 +156,7 @@ export const createProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, price, stock, category, isActive, is_active } = req.body;
+    const { name, description, price, stock, category, isActive, is_active, isFeatured, isOnSale, discountPercentage, saleStartDate, saleEndDate } = req.body;
 
     // Validate ID
     const idValidation = validateProductId(id);
@@ -146,7 +165,7 @@ export const updateProduct = async (req, res) => {
     }
 
     // Find existing product
-    const existingProduct = await productService.findById(idValidation.id);
+    const existingProduct = await productService.findByIdAny(idValidation.id);
     if (!existingProduct) {
       return notFoundResponse(res, 'Producto');
     }
@@ -162,6 +181,61 @@ export const updateProduct = async (req, res) => {
     const isActiveValue = isActive !== undefined ? isActive : is_active;
     if (isActiveValue !== undefined) {
       updateData.is_active = isActiveValue === 'true' || isActiveValue === true;
+    }
+
+    // Handle isFeatured
+    if (isFeatured !== undefined) {
+      updateData.is_featured = isFeatured === 'true' || isFeatured === true;
+    }
+
+    // Handle isOnSale and related fields
+    if (isOnSale !== undefined) {
+      const onSaleValue = isOnSale === 'true' || isOnSale === true;
+      updateData.is_on_sale = onSaleValue;
+
+      if (onSaleValue) {
+        // Validate discount percentage if on sale
+        const discountValidation = validateDiscountPercentage(discountPercentage);
+        if (!discountValidation.isValid) {
+          return errorResponse(res, discountValidation.error, 400);
+        }
+        updateData.discount_percentage = discountValidation.percentage;
+
+        // Validate sale dates
+        const datesValidation = validateSaleDates(saleStartDate, saleEndDate);
+        if (!datesValidation.isValid) {
+          return errorResponse(res, datesValidation.error, 400);
+        }
+        updateData.sale_start_date = saleStartDate || null;
+        updateData.sale_end_date = saleEndDate || null;
+      } else {
+        // If turning off sale, clear sale-related fields
+        updateData.discount_percentage = null;
+        updateData.sale_start_date = null;
+        updateData.sale_end_date = null;
+      }
+    } else if (discountPercentage !== undefined || saleStartDate !== undefined || saleEndDate !== undefined) {
+      // If sale fields are being updated but isOnSale is not explicitly set
+      if (existingProduct.is_on_sale) {
+        if (discountPercentage !== undefined) {
+          const discountValidation = validateDiscountPercentage(discountPercentage);
+          if (!discountValidation.isValid) {
+            return errorResponse(res, discountValidation.error, 400);
+          }
+          updateData.discount_percentage = discountValidation.percentage;
+        }
+        if (saleStartDate !== undefined || saleEndDate !== undefined) {
+          const datesValidation = validateSaleDates(
+            saleStartDate !== undefined ? saleStartDate : existingProduct.sale_start_date,
+            saleEndDate !== undefined ? saleEndDate : existingProduct.sale_end_date
+          );
+          if (!datesValidation.isValid) {
+            return errorResponse(res, datesValidation.error, 400);
+          }
+          if (saleStartDate !== undefined) updateData.sale_start_date = saleStartDate || null;
+          if (saleEndDate !== undefined) updateData.sale_end_date = saleEndDate || null;
+        }
+      }
     }
 
     // Validate and update price
@@ -348,6 +422,54 @@ export const getAllProductsAdmin = async (req, res) => {
 
   } catch (error) {
     logger.error('Error obteniendo productos admin:', { message: error.message });
+    return serverErrorResponse(res, error);
+  }
+};
+
+// Get featured products (public)
+export const getFeaturedProducts = async (req, res) => {
+  try {
+    const { page, limit } = req.query;
+    const limitInt = parseInt(limit) || 10;
+    const pageInt = parseInt(page) || 1;
+
+    const result = await buildProductQuery({
+      page: pageInt,
+      limit: limitInt,
+      isActive: true,
+      isFeatured: true
+    });
+
+    return successResponse(res, {
+      products: result.data,
+      pagination: result.pagination
+    });
+  } catch (error) {
+    logger.error('Error obteniendo productos destacados:', { message: error.message });
+    return serverErrorResponse(res, error);
+  }
+};
+
+// Get products on sale (public)
+export const getOnSaleProducts = async (req, res) => {
+  try {
+    const { page, limit } = req.query;
+    const limitInt = parseInt(limit) || 10;
+    const pageInt = parseInt(page) || 1;
+
+    const result = await buildProductQuery({
+      page: pageInt,
+      limit: limitInt,
+      isActive: true,
+      isOnSale: true
+    });
+
+    return successResponse(res, {
+      products: result.data,
+      pagination: result.pagination
+    });
+  } catch (error) {
+    logger.error('Error obteniendo productos en oferta:', { message: error.message });
     return serverErrorResponse(res, error);
   }
 };

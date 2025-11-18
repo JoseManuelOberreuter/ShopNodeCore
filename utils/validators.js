@@ -137,6 +137,53 @@ export const validateProductRequiredFields = (data) => {
 };
 
 /**
+ * Valida el porcentaje de descuento (0-100)
+ * @param {string|number} discountPercentage - Porcentaje de descuento a validar
+ * @returns {{isValid: boolean, percentage: number|null, error: string|null}}
+ */
+export const validateDiscountPercentage = (discountPercentage) => {
+  if (discountPercentage === undefined || discountPercentage === null || discountPercentage === '') {
+    return { isValid: false, percentage: null, error: 'Porcentaje de descuento requerido para productos en oferta' };
+  }
+
+  const percentage = parseFloat(discountPercentage);
+  if (isNaN(percentage) || percentage < 0 || percentage >= 100) {
+    return { isValid: false, percentage: null, error: 'El porcentaje de descuento debe estar entre 0 y 99.99' };
+  }
+
+  return { isValid: true, percentage, error: null };
+};
+
+/**
+ * Valida las fechas de oferta
+ * @param {string} saleStartDate - Fecha de inicio de oferta
+ * @param {string} saleEndDate - Fecha de fin de oferta
+ * @returns {{isValid: boolean, error: string|null}}
+ */
+export const validateSaleDates = (saleStartDate, saleEndDate) => {
+  if (!saleStartDate || !saleEndDate) {
+    return { isValid: false, error: 'Las fechas de inicio y fin de oferta son requeridas' };
+  }
+
+  const startDate = new Date(saleStartDate);
+  const endDate = new Date(saleEndDate);
+
+  if (isNaN(startDate.getTime())) {
+    return { isValid: false, error: 'Fecha de inicio de oferta inválida' };
+  }
+
+  if (isNaN(endDate.getTime())) {
+    return { isValid: false, error: 'Fecha de fin de oferta inválida' };
+  }
+
+  if (startDate >= endDate) {
+    return { isValid: false, error: 'La fecha de fin de oferta debe ser posterior a la fecha de inicio' };
+  }
+
+  return { isValid: true, error: null };
+};
+
+/**
  * Valida que el producto existe y está activo (sin validar stock)
  * @param {number} productId - ID del producto
  * @returns {Promise<{isValid: boolean, product: object|null, error: string|null}>}

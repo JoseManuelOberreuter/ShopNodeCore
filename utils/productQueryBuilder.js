@@ -25,7 +25,9 @@ export const buildProductQuery = async (options = {}) => {
     search,
     minPrice,
     maxPrice,
-    isActive = null // null = todos, true/false = filtrar
+    isActive = null, // null = todos, true/false = filtrar
+    isFeatured = null, // null = todos, true/false = filtrar
+    isOnSale = null // null = todos, true/false = filtrar
   } = options;
 
   const pageInt = parseInt(page);
@@ -78,6 +80,26 @@ export const buildProductQuery = async (options = {}) => {
 
   if (search) {
     query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+  }
+
+  // Aplicar filtro de is_featured si se especifica
+  if (isFeatured !== null) {
+    query = query.eq('is_featured', isFeatured === true);
+  }
+
+  // Aplicar filtro de is_on_sale si se especifica
+  if (isOnSale !== null && isOnSale === true) {
+    const now = new Date().toISOString();
+    query = query
+      .eq('is_on_sale', true)
+      .lte('sale_start_date', now)
+      .gte('sale_end_date', now)
+      .not('discount_percentage', 'is', null)
+      .gt('discount_percentage', 0)
+      .lt('discount_percentage', 100);
+  } else if (isOnSale !== null && isOnSale === false) {
+    // Si se especifica false, mostrar productos que NO están en oferta
+    query = query.or('is_on_sale.is.null,is_on_sale.eq.false');
   }
 
   // Aplicar ordenamiento y paginación
