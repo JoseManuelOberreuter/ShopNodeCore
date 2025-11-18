@@ -126,4 +126,54 @@ const sendPasswordResetEmail = async (email, token) => {
   }
 };
 
-export { sendVerificationEmail, sendPasswordResetEmail };
+// 📌 Enviar correo de contacto desde formulario
+const sendContactEmail = async (name, email, subject, message) => {
+  if (!process.env.EMAIL_USER) {
+    throw new Error('EMAIL_USER no está configurado en las variables de entorno');
+  }
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: process.env.EMAIL_USER, // Enviar al mismo correo que envía los otros correos
+    replyTo: email, // Permitir responder directamente al remitente
+    subject: `Contacto desde ShopNodeCore: ${subject}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #333;">🛒 ShopNodeCore</h1>
+          <h2 style="color: #4CAF50;">Nuevo Mensaje de Contacto</h2>
+        </div>
+        
+        <div style="background: #f5f5f5; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+          <p style="font-size: 16px; margin-bottom: 15px;">
+            Has recibido un nuevo mensaje de contacto desde el sitio web.
+          </p>
+          
+          <div style="background: white; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 10px 0;"><strong>Nombre:</strong> ${name}</p>
+            <p style="margin: 10px 0;"><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
+            <p style="margin: 10px 0;"><strong>Asunto:</strong> ${subject}</p>
+          </div>
+          
+          <div style="background: white; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0 0 10px 0;"><strong>Mensaje:</strong></p>
+            <p style="margin: 0; white-space: pre-wrap; line-height: 1.6;">${message}</p>
+          </div>
+        </div>
+        
+        <div style="text-align: center; font-size: 12px; color: #888; margin-top: 20px;">
+          <p>Puedes responder directamente a este correo para contactar a ${name}.</p>
+          <p>© 2024 ShopNodeCore - Tu tienda online de confianza</p>
+        </div>
+      </div>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    throw error;
+  }
+};
+
+export { sendVerificationEmail, sendPasswordResetEmail, sendContactEmail };
