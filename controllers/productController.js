@@ -196,53 +196,99 @@ export const updateProduct = async (req, res) => {
       updateData.is_active = isActiveValue === 'true' || isActiveValue === true;
     }
 
+    // Helper function to convert FormData boolean strings to boolean
+    const parseFormDataBoolean = (value) => {
+      if (value === undefined || value === null || value === '') {
+        return undefined;
+      }
+      if (typeof value === 'string') {
+        const lowerValue = value.toLowerCase().trim();
+        return lowerValue === 'true' || lowerValue === '1';
+      }
+      return Boolean(value);
+    };
+
+    // Helper function to normalize date format (datetime-local to ISO)
+    const normalizeDate = (dateValue) => {
+      if (!dateValue || dateValue === '' || dateValue === null) {
+        return null;
+      }
+      // If it's already in ISO format, return as is
+      if (typeof dateValue === 'string' && dateValue.includes('T') && dateValue.includes('Z')) {
+        return dateValue;
+      }
+      // If it's in datetime-local format (YYYY-MM-DDTHH:mm), convert to ISO
+      if (typeof dateValue === 'string' && dateValue.includes('T') && !dateValue.includes('Z')) {
+        // Add seconds and timezone if missing
+        const date = new Date(dateValue);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString();
+        }
+      }
+      // Try to parse as date
+      const date = new Date(dateValue);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+      return dateValue; // Return original if can't parse
+    };
+
     // Handle isFeatured - FormData sends booleans as strings
     if (isFeatured !== undefined && isFeatured !== null && isFeatured !== '') {
-      // Handle both string and boolean values from FormData
-      const featuredValue = typeof isFeatured === 'string' 
-        ? (isFeatured === 'true' || isFeatured === 'True' || isFeatured === '1')
-        : Boolean(isFeatured);
+      const featuredValue = parseFormDataBoolean(isFeatured);
       updateData.is_featured = featuredValue;
+      logger.info('isFeatured parsed:', { original: isFeatured, parsed: featuredValue });
     }
 
     // Handle isOnSale and related fields - FormData sends booleans as strings
     if (isOnSale !== undefined && isOnSale !== null && isOnSale !== '') {
-      // Handle both string and boolean values from FormData
-      const onSaleValue = typeof isOnSale === 'string'
-        ? (isOnSale === 'true' || isOnSale === 'True' || isOnSale === '1')
-        : Boolean(isOnSale);
+      const onSaleValue = parseFormDataBoolean(isOnSale);
       updateData.is_on_sale = onSaleValue;
+      logger.info('isOnSale parsed:', { original: isOnSale, parsed: onSaleValue });
 
       if (onSaleValue) {
         // Validate discount percentage if on sale
         if (discountPercentage !== undefined && discountPercentage !== null && discountPercentage !== '') {
           const discountValidation = validateDiscountPercentage(discountPercentage);
           if (!discountValidation.isValid) {
+            logger.error('Discount validation failed:', { discountPercentage, error: discountValidation.error });
             return errorResponse(res, discountValidation.error, 400);
           }
           updateData.discount_percentage = discountValidation.percentage;
         } else {
           // If discountPercentage is not provided but trying to activate sale, use existing or error
           if (!existingProduct.discount_percentage) {
+            logger.error('Discount percentage required but not provided');
             return errorResponse(res, 'Para activar la oferta, se requiere un porcentaje de descuento válido', 400);
           }
           updateData.discount_percentage = existingProduct.discount_percentage;
         }
 
-        // Validate sale dates
-        const startDate = saleStartDate !== undefined && saleStartDate !== null && saleStartDate !== '' 
-          ? saleStartDate 
-          : existingProduct.sale_start_date;
-        const endDate = saleEndDate !== undefined && saleEndDate !== null && saleEndDate !== ''
-          ? saleEndDate
-          : existingProduct.sale_end_date;
+        // Validate sale dates - normalize format first
+        let startDate = saleStartDate !== undefined && saleStartDate !== null && saleStartDate !== '' 
+          ? normalizeDate(saleStartDate)
+          : (existingProduct.sale_start_date ? normalizeDate(existingProduct.sale_start_date) : null);
+        let endDate = saleEndDate !== undefined && saleEndDate !== null && saleEndDate !== ''
+          ? normalizeDate(saleEndDate)
+          : (existingProduct.sale_end_date ? normalizeDate(existingProduct.sale_end_date) : null);
+        
+        logger.info('Sale dates normalized:', { 
+          originalStart: saleStartDate, 
+          normalizedStart: startDate,
+          originalEnd: saleEndDate,
+          normalizedEnd: endDate,
+          existingStart: existingProduct.sale_start_date,
+          existingEnd: existingProduct.sale_end_date
+        });
         
         if (!startDate || !endDate) {
+          logger.error('Sale dates missing:', { startDate, endDate });
           return errorResponse(res, 'Para activar la oferta, se requieren fechas de inicio y fin válidas', 400);
         }
         
         const datesValidation = validateSaleDates(startDate, endDate);
         if (!datesValidation.isValid) {
+          logger.error('Sale dates validation failed:', { startDate, endDate, error: datesValidation.error });
           return errorResponse(res, datesValidation.error, 400);
         }
         updateData.sale_start_date = startDate;
@@ -259,28 +305,34 @@ export const updateProduct = async (req, res) => {
         if (discountPercentage !== undefined && discountPercentage !== null && discountPercentage !== '') {
           const discountValidation = validateDiscountPercentage(discountPercentage);
           if (!discountValidation.isValid) {
+            logger.error('Discount validation failed (partial update):', { discountPercentage, error: discountValidation.error });
             return errorResponse(res, discountValidation.error, 400);
           }
           updateData.discount_percentage = discountValidation.percentage;
         }
         if ((saleStartDate !== undefined && saleStartDate !== null && saleStartDate !== '') || 
             (saleEndDate !== undefined && saleEndDate !== null && saleEndDate !== '')) {
-          const datesValidation = validateSaleDates(
-            saleStartDate !== undefined && saleStartDate !== null && saleStartDate !== '' 
-              ? saleStartDate 
-              : existingProduct.sale_start_date,
-            saleEndDate !== undefined && saleEndDate !== null && saleEndDate !== ''
-              ? saleEndDate
-              : existingProduct.sale_end_date
-          );
+          const normalizedStartDate = saleStartDate !== undefined && saleStartDate !== null && saleStartDate !== '' 
+            ? normalizeDate(saleStartDate)
+            : (existingProduct.sale_start_date ? normalizeDate(existingProduct.sale_start_date) : null);
+          const normalizedEndDate = saleEndDate !== undefined && saleEndDate !== null && saleEndDate !== ''
+            ? normalizeDate(saleEndDate)
+            : (existingProduct.sale_end_date ? normalizeDate(existingProduct.sale_end_date) : null);
+          
+          const datesValidation = validateSaleDates(normalizedStartDate, normalizedEndDate);
           if (!datesValidation.isValid) {
+            logger.error('Sale dates validation failed (partial update):', { 
+              startDate: normalizedStartDate, 
+              endDate: normalizedEndDate, 
+              error: datesValidation.error 
+            });
             return errorResponse(res, datesValidation.error, 400);
           }
           if (saleStartDate !== undefined && saleStartDate !== null && saleStartDate !== '') {
-            updateData.sale_start_date = saleStartDate;
+            updateData.sale_start_date = normalizedStartDate;
           }
           if (saleEndDate !== undefined && saleEndDate !== null && saleEndDate !== '') {
-            updateData.sale_end_date = saleEndDate;
+            updateData.sale_end_date = normalizedEndDate;
           }
         }
       }
@@ -350,12 +402,29 @@ export const updateProduct = async (req, res) => {
     return successResponse(res, formattedProduct, 'Producto actualizado exitosamente');
 
   } catch (error) {
+    // Log detailed error information
     logger.error('Error actualizando producto:', { 
       message: error.message,
+      stack: error.stack,
       error: error,
       updateData: updateData,
-      productId: req.params.id
+      productId: req.params?.id,
+      body: req.body,
+      errorName: error.name,
+      errorCode: error.code
     });
+    
+    // If it's a validation error or known error, return 400 instead of 500
+    if (error.name === 'ValidationError' || error.message?.includes('validation') || error.message?.includes('requerido')) {
+      return errorResponse(res, error.message || 'Error de validación', 400);
+    }
+    
+    // If it's a database constraint error, return 400 with a user-friendly message
+    if (error.code === '23505' || error.message?.includes('duplicate') || error.message?.includes('unique')) {
+      return errorResponse(res, 'El producto ya existe o hay un conflicto con los datos', 400);
+    }
+    
+    // For other errors, return 500 with generic message in production
     return serverErrorResponse(res, error);
   }
 };
