@@ -28,6 +28,26 @@ const upload = multer({
   }
 });
 
+// Optional multer for handling FormData without files
+const uploadOptional = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB
+  },
+  fileFilter: (req, file, cb) => {
+    if (!file) {
+      // Allow requests without files
+      return cb(null, true);
+    }
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Tipo de archivo no permitido. Solo se permiten: jpeg, png, webp'), false);
+    }
+  }
+});
+
 // Get all products (public)
 export const getAllProducts = async (req, res) => {
   try {
@@ -183,31 +203,57 @@ export const updateProduct = async (req, res) => {
       updateData.is_active = isActiveValue === 'true' || isActiveValue === true;
     }
 
-    // Handle isFeatured
-    if (isFeatured !== undefined) {
-      updateData.is_featured = isFeatured === 'true' || isFeatured === true;
+    // Handle isFeatured - FormData sends booleans as strings
+    if (isFeatured !== undefined && isFeatured !== null && isFeatured !== '') {
+      // Handle both string and boolean values from FormData
+      const featuredValue = typeof isFeatured === 'string' 
+        ? (isFeatured === 'true' || isFeatured === 'True' || isFeatured === '1')
+        : Boolean(isFeatured);
+      updateData.is_featured = featuredValue;
     }
 
-    // Handle isOnSale and related fields
-    if (isOnSale !== undefined) {
-      const onSaleValue = isOnSale === 'true' || isOnSale === true;
+    // Handle isOnSale and related fields - FormData sends booleans as strings
+    if (isOnSale !== undefined && isOnSale !== null && isOnSale !== '') {
+      // Handle both string and boolean values from FormData
+      const onSaleValue = typeof isOnSale === 'string'
+        ? (isOnSale === 'true' || isOnSale === 'True' || isOnSale === '1')
+        : Boolean(isOnSale);
       updateData.is_on_sale = onSaleValue;
 
       if (onSaleValue) {
         // Validate discount percentage if on sale
-        const discountValidation = validateDiscountPercentage(discountPercentage);
-        if (!discountValidation.isValid) {
-          return errorResponse(res, discountValidation.error, 400);
+        if (discountPercentage !== undefined && discountPercentage !== null && discountPercentage !== '') {
+          const discountValidation = validateDiscountPercentage(discountPercentage);
+          if (!discountValidation.isValid) {
+            return errorResponse(res, discountValidation.error, 400);
+          }
+          updateData.discount_percentage = discountValidation.percentage;
+        } else {
+          // If discountPercentage is not provided but trying to activate sale, use existing or error
+          if (!existingProduct.discount_percentage) {
+            return errorResponse(res, 'Para activar la oferta, se requiere un porcentaje de descuento válido', 400);
+          }
+          updateData.discount_percentage = existingProduct.discount_percentage;
         }
-        updateData.discount_percentage = discountValidation.percentage;
 
         // Validate sale dates
-        const datesValidation = validateSaleDates(saleStartDate, saleEndDate);
+        const startDate = saleStartDate !== undefined && saleStartDate !== null && saleStartDate !== '' 
+          ? saleStartDate 
+          : existingProduct.sale_start_date;
+        const endDate = saleEndDate !== undefined && saleEndDate !== null && saleEndDate !== ''
+          ? saleEndDate
+          : existingProduct.sale_end_date;
+        
+        if (!startDate || !endDate) {
+          return errorResponse(res, 'Para activar la oferta, se requieren fechas de inicio y fin válidas', 400);
+        }
+        
+        const datesValidation = validateSaleDates(startDate, endDate);
         if (!datesValidation.isValid) {
           return errorResponse(res, datesValidation.error, 400);
         }
-        updateData.sale_start_date = saleStartDate || null;
-        updateData.sale_end_date = saleEndDate || null;
+        updateData.sale_start_date = startDate;
+        updateData.sale_end_date = endDate;
       } else {
         // If turning off sale, clear sale-related fields
         updateData.discount_percentage = null;
@@ -217,23 +263,32 @@ export const updateProduct = async (req, res) => {
     } else if (discountPercentage !== undefined || saleStartDate !== undefined || saleEndDate !== undefined) {
       // If sale fields are being updated but isOnSale is not explicitly set
       if (existingProduct.is_on_sale) {
-        if (discountPercentage !== undefined) {
+        if (discountPercentage !== undefined && discountPercentage !== null && discountPercentage !== '') {
           const discountValidation = validateDiscountPercentage(discountPercentage);
           if (!discountValidation.isValid) {
             return errorResponse(res, discountValidation.error, 400);
           }
           updateData.discount_percentage = discountValidation.percentage;
         }
-        if (saleStartDate !== undefined || saleEndDate !== undefined) {
+        if ((saleStartDate !== undefined && saleStartDate !== null && saleStartDate !== '') || 
+            (saleEndDate !== undefined && saleEndDate !== null && saleEndDate !== '')) {
           const datesValidation = validateSaleDates(
-            saleStartDate !== undefined ? saleStartDate : existingProduct.sale_start_date,
-            saleEndDate !== undefined ? saleEndDate : existingProduct.sale_end_date
+            saleStartDate !== undefined && saleStartDate !== null && saleStartDate !== '' 
+              ? saleStartDate 
+              : existingProduct.sale_start_date,
+            saleEndDate !== undefined && saleEndDate !== null && saleEndDate !== ''
+              ? saleEndDate
+              : existingProduct.sale_end_date
           );
           if (!datesValidation.isValid) {
             return errorResponse(res, datesValidation.error, 400);
           }
-          if (saleStartDate !== undefined) updateData.sale_start_date = saleStartDate || null;
-          if (saleEndDate !== undefined) updateData.sale_end_date = saleEndDate || null;
+          if (saleStartDate !== undefined && saleStartDate !== null && saleStartDate !== '') {
+            updateData.sale_start_date = saleStartDate;
+          }
+          if (saleEndDate !== undefined && saleEndDate !== null && saleEndDate !== '') {
+            updateData.sale_end_date = saleEndDate;
+          }
         }
       }
     }
@@ -262,7 +317,9 @@ export const updateProduct = async (req, res) => {
     }
 
     // Process new image if uploaded
-    if (req.file) {
+    // Handle both req.file (from upload.single) and req.files (from upload.any)
+    const imageFile = req.file || (req.files && req.files.find(f => f.fieldname === 'image'));
+    if (imageFile) {
       if (existingProduct.image) {
         try {
           await deleteImage(existingProduct.image);
@@ -270,17 +327,30 @@ export const updateProduct = async (req, res) => {
           logger.warn('Error eliminando imagen anterior:', { message: error.message });
         }
       }
-      updateData.image = await uploadImage(req.file);
+      updateData.image = await uploadImage(imageFile);
     }
 
+    // Filter out undefined values from updateData before sending to Supabase
+    const cleanUpdateData = Object.keys(updateData).reduce((acc, key) => {
+      if (updateData[key] !== undefined) {
+        acc[key] = updateData[key];
+      }
+      return acc;
+    }, {});
+
     // Update product
-    const updatedProduct = await productService.update(idValidation.id, updateData);
+    const updatedProduct = await productService.update(idValidation.id, cleanUpdateData);
     const formattedProduct = formatProduct(updatedProduct);
 
     return successResponse(res, formattedProduct, 'Producto actualizado exitosamente');
 
   } catch (error) {
-    logger.error('Error actualizando producto:', { message: error.message });
+    logger.error('Error actualizando producto:', { 
+      message: error.message,
+      error: error,
+      updateData: updateData,
+      productId: req.params.id
+    });
     return serverErrorResponse(res, error);
   }
 };

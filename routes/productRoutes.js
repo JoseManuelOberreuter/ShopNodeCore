@@ -35,7 +35,8 @@ router.get('/:id', getProductById);
 // 🔒 RUTAS PRIVADAS (Solo Admin)
 router.post('/', auth, authAdmin, upload.single('image'), createProduct);
 
-router.put('/:id', auth, authAdmin, upload.single('image'), updateProduct);
+// Use upload.any() to handle FormData with or without files
+router.put('/:id', auth, authAdmin, upload.any(), updateProduct);
 
 router.delete('/:id', auth, authAdmin, deleteProduct);
 
