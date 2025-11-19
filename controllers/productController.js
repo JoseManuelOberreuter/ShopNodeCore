@@ -28,25 +28,8 @@ const upload = multer({
   }
 });
 
-// Optional multer for handling FormData without files
-const uploadOptional = multer({
-  storage: storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB
-  },
-  fileFilter: (req, file, cb) => {
-    if (!file) {
-      // Allow requests without files
-      return cb(null, true);
-    }
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Tipo de archivo no permitido. Solo se permiten: jpeg, png, webp'), false);
-    }
-  }
-});
+// Multer for handling FormData without files (fields only)
+const uploadNone = multer();
 
 // Get all products (public)
 export const getAllProducts = async (req, res) => {
@@ -174,8 +157,18 @@ export const createProduct = async (req, res) => {
 
 // Update product (admin only)
 export const updateProduct = async (req, res) => {
+  let updateData = {}; // Declare updateData in outer scope for error handling
   try {
     const { id } = req.params;
+    
+    // Log incoming data for debugging
+    logger.info('Update product request:', {
+      productId: id,
+      body: req.body,
+      hasFile: !!req.file,
+      filesCount: req.files ? req.files.length : 0
+    });
+    
     const { name, description, price, stock, category, isActive, is_active, isFeatured, isOnSale, discountPercentage, saleStartDate, saleEndDate } = req.body;
 
     // Validate ID
@@ -191,7 +184,7 @@ export const updateProduct = async (req, res) => {
     }
 
     // Prepare update data
-    const updateData = {};
+    updateData = {};
 
     if (name) updateData.name = name.trim();
     if (description) updateData.description = description.trim();
@@ -317,8 +310,8 @@ export const updateProduct = async (req, res) => {
     }
 
     // Process new image if uploaded
-    // Handle both req.file (from upload.single) and req.files (from upload.any)
-    const imageFile = req.file || (req.files && req.files.find(f => f.fieldname === 'image'));
+    // Handle req.files from upload.fields()
+    const imageFile = req.files && req.files.image && req.files.image[0] ? req.files.image[0] : null;
     if (imageFile) {
       if (existingProduct.image) {
         try {
@@ -338,10 +331,22 @@ export const updateProduct = async (req, res) => {
       return acc;
     }, {});
 
+    // Log what will be updated
+    logger.info('Updating product with data:', {
+      productId: idValidation.id,
+      updateData: cleanUpdateData
+    });
+
+    // Check if there's anything to update
+    if (Object.keys(cleanUpdateData).length === 0) {
+      return errorResponse(res, 'No hay campos para actualizar', 400);
+    }
+
     // Update product
     const updatedProduct = await productService.update(idValidation.id, cleanUpdateData);
     const formattedProduct = formatProduct(updatedProduct);
 
+    logger.info('Product updated successfully:', { productId: idValidation.id });
     return successResponse(res, formattedProduct, 'Producto actualizado exitosamente');
 
   } catch (error) {

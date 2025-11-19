@@ -35,8 +35,9 @@ router.get('/:id', getProductById);
 // 🔒 RUTAS PRIVADAS (Solo Admin)
 router.post('/', auth, authAdmin, upload.single('image'), createProduct);
 
-// Use upload.any() to handle FormData with or without files
-router.put('/:id', auth, authAdmin, upload.any(), updateProduct);
+// Use upload.fields([]) to handle FormData with optional file
+// This allows FormData to be parsed even without files
+router.put('/:id', auth, authAdmin, upload.fields([{ name: 'image', maxCount: 1 }]), updateProduct);
 
 router.delete('/:id', auth, authAdmin, deleteProduct);
 
