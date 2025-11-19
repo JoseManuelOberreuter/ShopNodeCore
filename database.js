@@ -5,10 +5,13 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_KEY
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 // Don't throw error on import - let it fail gracefully
 let supabase;
+let supabaseAdmin;
 
+// Cliente público (anon key) - respeta RLS para operaciones públicas
 if (!supabaseUrl) {
   console.error('⚠️ SUPABASE_URL is not set - Supabase operations will fail');
   // Create a dummy client to prevent crashes on import
@@ -21,7 +24,19 @@ if (!supabaseUrl) {
   supabase = createClient(supabaseUrl, supabaseKey);
 }
 
-export { supabase };
+// Cliente administrativo (service role key) - ignora RLS para operaciones administrativas
+if (!supabaseUrl) {
+  console.error('⚠️ SUPABASE_URL is not set - Admin Supabase operations will fail');
+  supabaseAdmin = createClient('https://dummy.supabase.co', supabaseServiceRoleKey || '');
+} else if (!supabaseServiceRoleKey) {
+  console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY is not set - Admin operations may fail due to RLS');
+  // Fallback to anon key if service role key is not set (for backward compatibility)
+  supabaseAdmin = createClient(supabaseUrl, supabaseKey || '');
+} else {
+  supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+}
+
+export { supabase, supabaseAdmin };
 
 // Función para inicializar la conexión (opcional - para mantener compatibilidad con el código existente)
 const connectDB = async () => {

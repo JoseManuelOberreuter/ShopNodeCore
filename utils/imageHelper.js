@@ -1,7 +1,7 @@
 // utils/imageHelper.js
 // Helper functions for image operations with Supabase Storage
 
-import { supabase } from '../database.js';
+import { supabaseAdmin } from '../database.js';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import logger from './logger.js';
@@ -19,8 +19,8 @@ export const uploadImage = async (file) => {
   const filePath = fileName;
 
   try {
-    // Upload file to Supabase Storage
-    const { data, error } = await supabase.storage
+    // Upload file to Supabase Storage (admin operation - uses service role key)
+    const { data, error } = await supabaseAdmin.storage
       .from(BUCKET_NAME)
       .upload(filePath, file.buffer, {
         contentType: file.mimetype,
@@ -32,7 +32,7 @@ export const uploadImage = async (file) => {
     }
 
     // Get public URL
-    const { data: publicData } = supabase.storage
+    const { data: publicData } = supabaseAdmin.storage
       .from(BUCKET_NAME)
       .getPublicUrl(filePath);
     
@@ -56,8 +56,8 @@ export const deleteImage = async (imageUrl) => {
     const pathParts = url.pathname.split('/');
     const fileName = pathParts[pathParts.length - 1];
     
-    // Delete file from Supabase Storage
-    const { error } = await supabase.storage
+    // Delete file from Supabase Storage (admin operation - uses service role key)
+    const { error } = await supabaseAdmin.storage
       .from(BUCKET_NAME)
       .remove([fileName]);
 

@@ -1,5 +1,5 @@
 // utils/productQueryBuilder.js
-import { supabase } from '../database.js';
+import { supabase, supabaseAdmin } from '../database.js';
 
 /**
  * Construye query de productos con filtros, ordenamiento y paginación
@@ -48,8 +48,12 @@ export const buildProductQuery = async (options = {}) => {
   const mappedSortBy = fieldMapping[sortBy] || sortBy;
   const finalSortBy = validSortFields.includes(mappedSortBy) ? mappedSortBy : 'created_at';
 
+  // Usar supabaseAdmin cuando isActive es null (admin puede ver todos los productos)
+  // Usar supabase para operaciones públicas que respetan RLS
+  const client = isActive === null ? supabaseAdmin : supabase;
+
   // Construir query base
-  let query = supabase
+  let query = client
     .from('products')
     .select('*', { count: 'exact' });
 

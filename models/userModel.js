@@ -1,4 +1,4 @@
-import { supabase } from '../database.js';
+import { supabase, supabaseAdmin } from '../database.js';
 
 // Funciones para manejar usuarios
 export const userService = {
@@ -90,28 +90,35 @@ export const userService = {
     return data;
   },
 
-  // Actualizar usuario
-  async update(id, updateData) {
+  // Actualizar usuario (usa service role key para operaciones administrativas)
+  async update(id, updateData, isAdminOperation = false) {
     // Agregar updated_at automáticamente
     const dataToUpdate = {
       ...updateData,
       updated_at: new Date().toISOString()
     };
 
-    const { data, error } = await supabase
+    // Usar supabaseAdmin para operaciones administrativas, supabase para operaciones de usuario
+    const client = isAdminOperation ? supabaseAdmin : supabase;
+    const { data, error } = await client
       .from('users')
       .update(dataToUpdate)
       .eq('id', id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) {
+      const notFoundError = new Error('Usuario no encontrado');
+      notFoundError.code = 'PGRST116';
+      throw notFoundError;
+    }
     return data;
   },
 
-  // Eliminar usuario (soft delete)
+  // Eliminar usuario (soft delete - admin only - usa service role key)
   async delete(id) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('users')
       .update({ 
         deleted_at: new Date().toISOString(),
@@ -119,9 +126,14 @@ export const userService = {
       })
       .eq('id', id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) {
+      const notFoundError = new Error('Usuario no encontrado');
+      notFoundError.code = 'PGRST116';
+      throw notFoundError;
+    }
     return data;
   },
 
@@ -136,9 +148,9 @@ export const userService = {
     return data;
   },
 
-  // Buscar todos los usuarios incluyendo eliminados (útil para admin)
+  // Buscar todos los usuarios incluyendo eliminados (útil para admin - usa service role key)
   async findAllIncludingDeleted() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('users')
       .select('*');
 
@@ -146,9 +158,9 @@ export const userService = {
     return data;
   },
 
-  // Restaurar usuario eliminado (soft delete)
+  // Restaurar usuario eliminado (soft delete - admin only - usa service role key)
   async restore(id) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('users')
       .update({ 
         deleted_at: null,
@@ -156,9 +168,14 @@ export const userService = {
       })
       .eq('id', id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) {
+      const notFoundError = new Error('Usuario no encontrado');
+      notFoundError.code = 'PGRST116';
+      throw notFoundError;
+    }
     return data;
   },
 

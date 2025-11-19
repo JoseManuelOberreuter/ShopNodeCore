@@ -1,9 +1,9 @@
-import { supabase } from '../database.js';
+import { supabase, supabaseAdmin } from '../database.js';
 
 export const productService = {
-  // Crear producto
+  // Crear producto (admin only - usa service role key)
   async create(productData) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('products')
       .insert([{
         name: productData.name,
@@ -39,9 +39,9 @@ export const productService = {
     return data;
   },
 
-  // Buscar producto por ID sin filtrar por estado (útil para admin)
+  // Buscar producto por ID sin filtrar por estado (útil para admin - usa service role key)
   async findByIdAny(id) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('products')
       .select('*')
       .eq('id', id)
@@ -87,29 +87,39 @@ export const productService = {
     return data;
   },
 
-  // Actualizar producto
+  // Actualizar producto (admin only - usa service role key)
   async update(id, updateData) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('products')
       .update(updateData)
       .eq('id', id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) {
+      const notFoundError = new Error('Producto no encontrado');
+      notFoundError.code = 'PGRST116';
+      throw notFoundError;
+    }
     return data;
   },
 
-  // Eliminar producto (soft delete)
+  // Eliminar producto (soft delete - admin only - usa service role key)
   async delete(id) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('products')
       .update({ is_active: false })
       .eq('id', id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) {
+      const notFoundError = new Error('Producto no encontrado');
+      notFoundError.code = 'PGRST116';
+      throw notFoundError;
+    }
     return data;
   },
 

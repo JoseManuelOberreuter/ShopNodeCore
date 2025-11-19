@@ -1,4 +1,4 @@
-import { supabase } from '../database.js';
+import { supabase, supabaseAdmin } from '../database.js';
 
 export const orderService = {
   // Crear orden
@@ -128,16 +128,21 @@ export const orderService = {
     return data || []; // Devolver array vacío si no hay datos
   },
 
-  // Actualizar estado de orden
+  // Actualizar estado de orden (admin only - usa service role key)
   async updateStatus(id, status) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('orders')
       .update({ status })
       .eq('id', id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) {
+      const notFoundError = new Error('Orden no encontrada');
+      notFoundError.code = 'PGRST116';
+      throw notFoundError;
+    }
     return data;
   },
 
@@ -172,9 +177,9 @@ export const orderService = {
     return data;
   },
   
-  // Buscar todas las órdenes
+  // Buscar todas las órdenes (admin only - usa service role key)
   async findAll() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('orders')
       .select(`
         *,
@@ -193,16 +198,21 @@ export const orderService = {
     return data || []; // Devolver array vacío si no hay datos
   },
 
-  // Actualizar notas de orden
+  // Actualizar notas de orden (admin only - usa service role key)
   async updateNotes(orderId, notes) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('orders')
       .update({ notes })
       .eq('id', orderId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) {
+      const notFoundError = new Error('Orden no encontrada');
+      notFoundError.code = 'PGRST116';
+      throw notFoundError;
+    }
     return data;
   },
 

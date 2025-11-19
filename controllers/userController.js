@@ -603,8 +603,8 @@ const updateUserByAdmin = async (req, res) => {
       return errorResponse(res, 'No hay datos para actualizar', 400);
     }
 
-    // Update user
-    const updatedUser = await userService.update(idValidation.userId, updateData);
+    // Update user (admin operation - uses service role key)
+    const updatedUser = await userService.update(idValidation.userId, updateData, true);
 
     // Return success response with updated data (without password)
     const formattedUser = formatUser(updatedUser);
