@@ -3,8 +3,10 @@ import request from 'supertest';
 import express from 'express';
 
 const mockSendContactEmail = jest.fn();
+const mockSendContactAcknowledgementEmail = jest.fn();
 jest.unstable_mockModule('../utils/mailer.js', () => ({
-  sendContactEmail: mockSendContactEmail
+  sendContactEmail: mockSendContactEmail,
+  sendContactAcknowledgementEmail: mockSendContactAcknowledgementEmail
 }));
 
 const mockValidators = {
@@ -36,6 +38,7 @@ describe('Contact Routes', () => {
       error: null
     });
     mockSendContactEmail.mockResolvedValue();
+    mockSendContactAcknowledgementEmail.mockResolvedValue();
   });
 
   it('POST /api/contact should send contact form successfully', async () => {
@@ -54,6 +57,12 @@ describe('Contact Routes', () => {
     expect(response.body).toHaveProperty('success', true);
     expect(response.body).toHaveProperty('message');
     expect(mockSendContactEmail).toHaveBeenCalledWith(
+      'John Doe',
+      'john@example.com',
+      'Test Subject',
+      'This is a test message with enough characters to pass validation.'
+    );
+    expect(mockSendContactAcknowledgementEmail).toHaveBeenCalledWith(
       'John Doe',
       'john@example.com',
       'Test Subject',
@@ -82,6 +91,7 @@ describe('Contact Routes', () => {
     expect(response.body).toHaveProperty('success', false);
     expect(response.body).toHaveProperty('error');
     expect(mockSendContactEmail).not.toHaveBeenCalled();
+    expect(mockSendContactAcknowledgementEmail).not.toHaveBeenCalled();
   });
 
   it('POST /api/contact should return 400 when email format is invalid', async () => {
@@ -105,6 +115,7 @@ describe('Contact Routes', () => {
     expect(response.body).toHaveProperty('success', false);
     expect(response.body.error).toContain('Formato de email inválido');
     expect(mockSendContactEmail).not.toHaveBeenCalled();
+    expect(mockSendContactAcknowledgementEmail).not.toHaveBeenCalled();
   });
 
   it('POST /api/contact should return 400 when name is too short', async () => {
@@ -123,6 +134,7 @@ describe('Contact Routes', () => {
     expect(response.body).toHaveProperty('success', false);
     expect(response.body.error).toContain('nombre');
     expect(mockSendContactEmail).not.toHaveBeenCalled();
+    expect(mockSendContactAcknowledgementEmail).not.toHaveBeenCalled();
   });
 
   it('POST /api/contact should return 400 when message is too short', async () => {
@@ -141,6 +153,7 @@ describe('Contact Routes', () => {
     expect(response.body).toHaveProperty('success', false);
     expect(response.body.error).toContain('mensaje');
     expect(mockSendContactEmail).not.toHaveBeenCalled();
+    expect(mockSendContactAcknowledgementEmail).not.toHaveBeenCalled();
   });
 
   it('POST /api/contact should handle email sending errors', async () => {
@@ -160,6 +173,26 @@ describe('Contact Routes', () => {
 
     expect(response.body).toHaveProperty('success', false);
     expect(response.body.error).toContain('Error al enviar');
+  });
+
+  it('POST /api/contact should still succeed if acknowledgement email fails', async () => {
+    const contactData = {
+      name: 'John Doe',
+      email: 'john@example.com',
+      subject: 'Test Subject',
+      message: 'This is a test message with enough characters to pass validation.'
+    };
+
+    mockSendContactAcknowledgementEmail.mockRejectedValue(new Error('SMTP blocked'));
+
+    const response = await request(app)
+      .post('/api/contact')
+      .send(contactData)
+      .expect(200);
+
+    expect(response.body).toHaveProperty('success', true);
+    expect(mockSendContactEmail).toHaveBeenCalledTimes(1);
+    expect(mockSendContactAcknowledgementEmail).toHaveBeenCalledTimes(1);
   });
 
   it('POST /api/contact should apply rate limiting', async () => {

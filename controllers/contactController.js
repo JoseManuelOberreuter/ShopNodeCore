@@ -1,4 +1,4 @@
-import { sendContactEmail } from '../utils/mailer.js';
+import { sendContactEmail, sendContactAcknowledgementEmail } from '../utils/mailer.js';
 import logger from '../utils/logger.js';
 import { successResponse, errorResponse, serverErrorResponse } from '../utils/responseHelper.js';
 import { validateRequiredFields, validateEmail } from '../utils/validators.js';
@@ -40,8 +40,22 @@ export const submitContactForm = async (req, res) => {
       return errorResponse(res, 'El mensaje debe tener entre 10 y 5000 caracteres', 400);
     }
 
-    // Send contact email
-    await sendContactEmail(name.trim(), email.trim(), subject.trim(), message.trim());
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedSubject = subject.trim();
+    const trimmedMessage = message.trim();
+
+    // Send contact email to site owner
+    await sendContactEmail(trimmedName, trimmedEmail, trimmedSubject, trimmedMessage);
+
+    // Send confirmation email to sender (do not block success if it fails)
+    try {
+      await sendContactAcknowledgementEmail(trimmedName, trimmedEmail, trimmedSubject, trimmedMessage);
+    } catch (ackError) {
+      logger.warn('No se pudo enviar el correo de confirmación al remitente.', {
+        error: ackError.message
+      });
+    }
 
     return successResponse(
       res,
