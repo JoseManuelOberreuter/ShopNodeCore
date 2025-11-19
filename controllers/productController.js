@@ -247,8 +247,8 @@ export const updateProduct = async (req, res) => {
       logger.info('isOnSale parsed:', { original: isOnSale, parsed: onSaleValue });
 
       if (onSaleValue) {
-        // Validate discount percentage if on sale
-        if (discountPercentage !== undefined && discountPercentage !== null && discountPercentage !== '') {
+        // Validate discount percentage if on sale (skip if undefined, empty, or string "undefined")
+        if (discountPercentage !== undefined && discountPercentage !== null && discountPercentage !== '' && discountPercentage !== 'undefined') {
           const discountValidation = validateDiscountPercentage(discountPercentage);
           if (!discountValidation.isValid) {
             logger.error('Discount validation failed:', { discountPercentage, error: discountValidation.error });
@@ -302,7 +302,7 @@ export const updateProduct = async (req, res) => {
     } else if (discountPercentage !== undefined || saleStartDate !== undefined || saleEndDate !== undefined) {
       // If sale fields are being updated but isOnSale is not explicitly set
       if (existingProduct.is_on_sale) {
-        if (discountPercentage !== undefined && discountPercentage !== null && discountPercentage !== '') {
+        if (discountPercentage !== undefined && discountPercentage !== null && discountPercentage !== '' && discountPercentage !== 'undefined') {
           const discountValidation = validateDiscountPercentage(discountPercentage);
           if (!discountValidation.isValid) {
             logger.error('Discount validation failed (partial update):', { discountPercentage, error: discountValidation.error });
@@ -338,8 +338,8 @@ export const updateProduct = async (req, res) => {
       }
     }
 
-    // Validate and update price
-    if (price !== undefined && price !== '') {
+    // Validate and update price (skip if undefined, empty, or string "undefined")
+    if (price !== undefined && price !== null && price !== '' && price !== 'undefined') {
       const priceValidation = validatePrice(price);
       if (!priceValidation.isValid) {
         return errorResponse(res, priceValidation.error, 400);
@@ -347,8 +347,8 @@ export const updateProduct = async (req, res) => {
       updateData.price = priceValidation.price;
     }
 
-    // Validate and update stock
-    if (stock !== undefined && stock !== '') {
+    // Validate and update stock (skip if undefined, empty, or string "undefined")
+    if (stock !== undefined && stock !== null && stock !== '' && stock !== 'undefined') {
       const stockValidation = validateStock(stock, true);
       if (!stockValidation.isValid) {
         return errorResponse(res, stockValidation.error, 400);
@@ -375,10 +375,12 @@ export const updateProduct = async (req, res) => {
       updateData.image = await uploadImage(imageFile);
     }
 
-    // Filter out undefined values from updateData before sending to Supabase
+    // Filter out undefined values and string "undefined" from updateData before sending to Supabase
     const cleanUpdateData = Object.keys(updateData).reduce((acc, key) => {
-      if (updateData[key] !== undefined) {
-        acc[key] = updateData[key];
+      const value = updateData[key];
+      // Skip undefined, null, empty strings, and the string "undefined"
+      if (value !== undefined && value !== null && value !== '' && value !== 'undefined') {
+        acc[key] = value;
       }
       return acc;
     }, {});
