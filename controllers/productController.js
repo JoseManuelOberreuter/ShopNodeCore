@@ -388,15 +388,28 @@ export const updateProduct = async (req, res) => {
     // Log what will be updated
     logger.info('Updating product with data:', {
       productId: idValidation.id,
-      updateData: cleanUpdateData
+      productIdType: typeof idValidation.id,
+      updateData: cleanUpdateData,
+      updateDataKeys: Object.keys(cleanUpdateData),
+      originalUpdateData: updateData,
+      originalUpdateDataKeys: Object.keys(updateData)
     });
 
     // Check if there's anything to update
     if (Object.keys(cleanUpdateData).length === 0) {
+      logger.warn('No fields to update after cleaning:', { 
+        productId: idValidation.id, 
+        originalUpdateData: updateData 
+      });
       return errorResponse(res, 'No hay campos para actualizar', 400);
     }
 
     // Update product
+    logger.info('Calling productService.update:', { 
+      id: idValidation.id, 
+      idType: typeof idValidation.id,
+      cleanUpdateData 
+    });
     const updatedProduct = await productService.update(idValidation.id, cleanUpdateData);
     const formattedProduct = formatProduct(updatedProduct);
 

@@ -102,19 +102,58 @@ export const productService = {
       logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
       throw new Error('Service role key not configured. Admin operations are disabled.');
     }
+    
+    // Clean updateData to remove any undefined values that might cause issues
+    const cleanData = Object.keys(updateData).reduce((acc, key) => {
+      const value = updateData[key];
+      if (value !== undefined && value !== null && value !== 'undefined') {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+    
+    logger.info('ProductModel.update called:', { id, updateData: cleanData, originalKeys: Object.keys(updateData) });
+    
+    // First verify the product exists
+    const { data: existingProduct, error: findError } = await supabaseAdmin
+      .from('products')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+    
+    if (findError) {
+      logger.error('Error finding product before update:', { id, error: findError });
+      throw findError;
+    }
+    
+    if (!existingProduct) {
+      logger.error('Product not found before update:', { id });
+      const notFoundError = new Error(`Producto con ID ${id} no encontrado`);
+      notFoundError.code = 'PGRST116';
+      throw notFoundError;
+    }
+    
+    // Now perform the update
     const { data, error } = await supabaseAdmin
       .from('products')
-      .update(updateData)
+      .update(cleanData)
       .eq('id', id)
       .select()
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      logger.error('Error updating product:', { id, updateData: cleanData, error });
+      throw error;
+    }
+    
     if (!data) {
-      const notFoundError = new Error('Producto no encontrado');
+      logger.error('Update returned no data (product may have been deleted or RLS blocked):', { id, updateData: cleanData });
+      const notFoundError = new Error(`Producto con ID ${id} no encontrado después de la actualización`);
       notFoundError.code = 'PGRST116';
       throw notFoundError;
     }
+    
+    logger.info('Product updated successfully:', { id, updatedFields: Object.keys(cleanData) });
     return data;
   },
 
