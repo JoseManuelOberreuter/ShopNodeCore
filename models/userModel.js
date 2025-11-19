@@ -1,4 +1,5 @@
 import { supabase, supabaseAdmin } from '../database.js';
+import logger from '../utils/logger.js';
 
 // Funciones para manejar usuarios
 export const userService = {
@@ -92,6 +93,12 @@ export const userService = {
 
   // Actualizar usuario (usa service role key para operaciones administrativas)
   async update(id, updateData, isAdminOperation = false) {
+    // Validar que supabaseAdmin está disponible para operaciones administrativas
+    if (isAdminOperation && !supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      throw new Error('Service role key not configured. Admin operations are disabled.');
+    }
+    
     // Agregar updated_at automáticamente
     const dataToUpdate = {
       ...updateData,
@@ -118,6 +125,10 @@ export const userService = {
 
   // Eliminar usuario (soft delete - admin only - usa service role key)
   async delete(id) {
+    if (!supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      throw new Error('Service role key not configured. Admin operations are disabled.');
+    }
     const { data, error } = await supabaseAdmin
       .from('users')
       .update({ 
@@ -150,6 +161,10 @@ export const userService = {
 
   // Buscar todos los usuarios incluyendo eliminados (útil para admin - usa service role key)
   async findAllIncludingDeleted() {
+    if (!supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      throw new Error('Service role key not configured. Admin operations are disabled.');
+    }
     const { data, error } = await supabaseAdmin
       .from('users')
       .select('*');
@@ -160,6 +175,10 @@ export const userService = {
 
   // Restaurar usuario eliminado (soft delete - admin only - usa service role key)
   async restore(id) {
+    if (!supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      throw new Error('Service role key not configured. Admin operations are disabled.');
+    }
     const { data, error } = await supabaseAdmin
       .from('users')
       .update({ 

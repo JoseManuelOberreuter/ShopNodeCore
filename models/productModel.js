@@ -1,8 +1,13 @@
 import { supabase, supabaseAdmin } from '../database.js';
+import logger from '../utils/logger.js';
 
 export const productService = {
   // Crear producto (admin only - usa service role key)
   async create(productData) {
+    if (!supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      throw new Error('Service role key not configured. Admin operations are disabled.');
+    }
     const { data, error } = await supabaseAdmin
       .from('products')
       .insert([{
@@ -41,6 +46,10 @@ export const productService = {
 
   // Buscar producto por ID sin filtrar por estado (útil para admin - usa service role key)
   async findByIdAny(id) {
+    if (!supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      throw new Error('Service role key not configured. Admin operations are disabled.');
+    }
     const { data, error } = await supabaseAdmin
       .from('products')
       .select('*')
@@ -89,6 +98,10 @@ export const productService = {
 
   // Actualizar producto (admin only - usa service role key)
   async update(id, updateData) {
+    if (!supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      throw new Error('Service role key not configured. Admin operations are disabled.');
+    }
     const { data, error } = await supabaseAdmin
       .from('products')
       .update(updateData)
@@ -107,6 +120,10 @@ export const productService = {
 
   // Eliminar producto (soft delete - admin only - usa service role key)
   async delete(id) {
+    if (!supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      throw new Error('Service role key not configured. Admin operations are disabled.');
+    }
     const { data, error } = await supabaseAdmin
       .from('products')
       .update({ is_active: false })

@@ -29,10 +29,14 @@ if (!supabaseUrl) {
   console.error('⚠️ SUPABASE_URL is not set - Admin Supabase operations will fail');
   supabaseAdmin = createClient('https://dummy.supabase.co', supabaseServiceRoleKey || '');
 } else if (!supabaseServiceRoleKey) {
-  console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY is not set - Admin operations may fail due to RLS');
+  console.error('❌ SUPABASE_SERVICE_ROLE_KEY is not set - Admin operations WILL FAIL due to RLS');
+  console.error('   Please configure SUPABASE_SERVICE_ROLE_KEY in your environment variables');
+  console.error('   Falling back to anon key, but this may not work with RLS policies');
   // Fallback to anon key if service role key is not set (for backward compatibility)
+  // WARNING: This will likely fail with RLS policies that require service_role
   supabaseAdmin = createClient(supabaseUrl, supabaseKey || '');
 } else {
+  console.log('✅ SUPABASE_SERVICE_ROLE_KEY configured - Admin operations enabled');
   supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 }
 

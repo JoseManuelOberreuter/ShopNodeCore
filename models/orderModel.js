@@ -1,4 +1,5 @@
 import { supabase, supabaseAdmin } from '../database.js';
+import logger from '../utils/logger.js';
 
 export const orderService = {
   // Crear orden
@@ -130,6 +131,10 @@ export const orderService = {
 
   // Actualizar estado de orden (admin only - usa service role key)
   async updateStatus(id, status) {
+    if (!supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      throw new Error('Service role key not configured. Admin operations are disabled.');
+    }
     const { data, error } = await supabaseAdmin
       .from('orders')
       .update({ status })
@@ -179,6 +184,10 @@ export const orderService = {
   
   // Buscar todas las órdenes (admin only - usa service role key)
   async findAll() {
+    if (!supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      throw new Error('Service role key not configured. Admin operations are disabled.');
+    }
     const { data, error } = await supabaseAdmin
       .from('orders')
       .select(`
@@ -200,6 +209,10 @@ export const orderService = {
 
   // Actualizar notas de orden (admin only - usa service role key)
   async updateNotes(orderId, notes) {
+    if (!supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      throw new Error('Service role key not configured. Admin operations are disabled.');
+    }
     const { data, error } = await supabaseAdmin
       .from('orders')
       .update({ notes })

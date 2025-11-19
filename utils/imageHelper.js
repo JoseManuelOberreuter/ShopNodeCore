@@ -19,6 +19,12 @@ export const uploadImage = async (file) => {
   const filePath = fileName;
 
   try {
+    // Validate that supabaseAdmin is available
+    if (!supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      throw new Error('Service role key not configured. Image upload is disabled.');
+    }
+    
     // Upload file to Supabase Storage (admin operation - uses service role key)
     const { data, error } = await supabaseAdmin.storage
       .from(BUCKET_NAME)
@@ -51,6 +57,12 @@ export const uploadImage = async (file) => {
  */
 export const deleteImage = async (imageUrl) => {
   try {
+    // Validate that supabaseAdmin is available
+    if (!supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      throw new Error('Service role key not configured. Image deletion is disabled.');
+    }
+    
     // Extract file path from URL
     const url = new URL(imageUrl);
     const pathParts = url.pathname.split('/');

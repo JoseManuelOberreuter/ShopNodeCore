@@ -13,6 +13,13 @@ if (missingVars.length > 0) {
   console.error('Please configure these in your Vercel project settings');
 }
 
+// Check for recommended environment variables
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY is not set');
+  console.warn('   Admin operations (product/user management) may fail due to RLS policies');
+  console.warn('   Please configure SUPABASE_SERVICE_ROLE_KEY in your Vercel project settings');
+}
+
 // Import database connection (Supabase client is created immediately on import)
 // This will create the supabase client even if variables are missing (database.js handles it gracefully)
 import '../database.js';
