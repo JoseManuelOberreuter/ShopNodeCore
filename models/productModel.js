@@ -117,7 +117,7 @@ export const productService = {
     // First verify the product exists
     const { data: existingProduct, error: findError } = await supabaseAdmin
       .from('products')
-      .select('id')
+      .select('id, is_featured, is_on_sale')
       .eq('id', id)
       .maybeSingle();
     
@@ -133,8 +133,10 @@ export const productService = {
       throw notFoundError;
     }
     
+    logger.info('Product before update:', { id, existing: existingProduct, willUpdate: cleanData });
+    
     // Perform the update WITHOUT select first (this avoids RLS issues with UPDATE().select())
-    const { error: updateError, count } = await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('products')
       .update(cleanData)
       .eq('id', id);
@@ -143,6 +145,11 @@ export const productService = {
       logger.error('Error updating product:', { id, updateData: cleanData, error: updateError });
       throw updateError;
     }
+    
+    logger.info('Update command executed, fetching updated product...');
+    
+    // Wait a small moment to ensure the update is committed
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     // Now fetch the updated product separately (this uses the SELECT policy which should work)
     const { data, error: selectError } = await supabaseAdmin
@@ -163,7 +170,30 @@ export const productService = {
       throw notFoundError;
     }
     
-    logger.info('Product updated successfully:', { id, updatedFields: Object.keys(cleanData) });
+    // Verify the update actually changed the values
+    const changedFields = Object.keys(cleanData).filter(key => {
+      const oldValue = existingProduct[key];
+      const newValue = data[key];
+      return JSON.stringify(oldValue) !== JSON.stringify(newValue);
+    });
+    
+    if (changedFields.length === 0 && Object.keys(cleanData).length > 0) {
+      logger.warn('Update executed but no fields changed:', { 
+        id, 
+        updateData: cleanData, 
+        existing: existingProduct,
+        after: data 
+      });
+    }
+    
+    logger.info('Product updated successfully:', { 
+      id, 
+      updatedFields: Object.keys(cleanData),
+      changedFields,
+      before: existingProduct,
+      after: data
+    });
+    
     return data;
   },
 
