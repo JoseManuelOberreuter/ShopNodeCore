@@ -133,21 +133,31 @@ export const productService = {
       throw notFoundError;
     }
     
-    // Now perform the update
-    const { data, error } = await supabaseAdmin
+    // Perform the update WITHOUT select first (this avoids RLS issues with UPDATE().select())
+    const { error: updateError, count } = await supabaseAdmin
       .from('products')
       .update(cleanData)
-      .eq('id', id)
-      .select()
-      .maybeSingle();
+      .eq('id', id);
 
-    if (error) {
-      logger.error('Error updating product:', { id, updateData: cleanData, error });
-      throw error;
+    if (updateError) {
+      logger.error('Error updating product:', { id, updateData: cleanData, error: updateError });
+      throw updateError;
+    }
+    
+    // Now fetch the updated product separately (this uses the SELECT policy which should work)
+    const { data, error: selectError } = await supabaseAdmin
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (selectError) {
+      logger.error('Error fetching updated product:', { id, error: selectError });
+      throw selectError;
     }
     
     if (!data) {
-      logger.error('Update returned no data (product may have been deleted or RLS blocked):', { id, updateData: cleanData });
+      logger.error('Updated product not found after update:', { id, updateData: cleanData });
       const notFoundError = new Error(`Producto con ID ${id} no encontrado después de la actualización`);
       notFoundError.code = 'PGRST116';
       throw notFoundError;
