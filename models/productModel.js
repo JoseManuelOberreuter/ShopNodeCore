@@ -112,46 +112,47 @@ export const productService = {
       return acc;
     }, {});
     
-    logger.info('ProductModel.update called:', { id, updateData: cleanData, originalKeys: Object.keys(updateData) });
+    // Use console.log for Vercel visibility
+    console.log('🔵 ProductModel.update called:', JSON.stringify({ id, updateData: cleanData }));
     
     // First verify the product exists
     const { data: existingProduct, error: findError } = await supabaseAdmin
       .from('products')
-      .select('id, is_featured, is_on_sale')
+      .select('id, is_featured, is_on_sale, name')
       .eq('id', id)
       .maybeSingle();
     
     if (findError) {
-      logger.error('Error finding product before update:', { id, error: findError });
+      console.error('❌ Error finding product:', findError);
       throw findError;
     }
     
     if (!existingProduct) {
-      logger.error('Product not found before update:', { id });
-      const notFoundError = new Error(`Producto con ID ${id} no encontrado`);
-      notFoundError.code = 'PGRST116';
-      throw notFoundError;
+      console.error('❌ Product not found:', id);
+      throw new Error(`Producto con ID ${id} no encontrado`);
     }
     
-    logger.info('Product before update:', { id, existing: existingProduct, willUpdate: cleanData });
+    console.log('🔵 Product BEFORE update:', JSON.stringify(existingProduct));
+    console.log('🔵 Will update with:', JSON.stringify(cleanData));
     
-    // Perform the update WITHOUT select first (this avoids RLS issues with UPDATE().select())
-    const { error: updateError } = await supabaseAdmin
+    // Perform the update
+    const { error: updateError, data: updateResult } = await supabaseAdmin
       .from('products')
       .update(cleanData)
-      .eq('id', id);
+      .eq('id', id)
+      .select('id'); // Select just id to verify update worked
 
     if (updateError) {
-      logger.error('Error updating product:', { id, updateData: cleanData, error: updateError });
+      console.error('❌ Update error:', updateError);
       throw updateError;
     }
     
-    logger.info('Update command executed, fetching updated product...');
+    console.log('🔵 Update result:', JSON.stringify(updateResult));
     
-    // Wait a small moment to ensure the update is committed
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Wait a moment for consistency
+    await new Promise(resolve => setTimeout(resolve, 200));
     
-    // Now fetch the updated product separately (this uses the SELECT policy which should work)
+    // Fetch the updated product
     const { data, error: selectError } = await supabaseAdmin
       .from('products')
       .select('*')
@@ -159,40 +160,33 @@ export const productService = {
       .single();
 
     if (selectError) {
-      logger.error('Error fetching updated product:', { id, error: selectError });
+      console.error('❌ Select error:', selectError);
       throw selectError;
     }
     
     if (!data) {
-      logger.error('Updated product not found after update:', { id, updateData: cleanData });
-      const notFoundError = new Error(`Producto con ID ${id} no encontrado después de la actualización`);
-      notFoundError.code = 'PGRST116';
-      throw notFoundError;
+      console.error('❌ No data after update');
+      throw new Error(`Producto con ID ${id} no encontrado después de la actualización`);
     }
     
-    // Verify the update actually changed the values
-    const changedFields = Object.keys(cleanData).filter(key => {
-      const oldValue = existingProduct[key];
-      const newValue = data[key];
-      return JSON.stringify(oldValue) !== JSON.stringify(newValue);
+    console.log('🔵 Product AFTER update:', JSON.stringify({
+      id: data.id,
+      name: data.name,
+      is_featured: data.is_featured,
+      is_on_sale: data.is_on_sale
+    }));
+    
+    // Verify changes
+    const changed = Object.keys(cleanData).some(key => {
+      return JSON.stringify(existingProduct[key]) !== JSON.stringify(data[key]);
     });
     
-    if (changedFields.length === 0 && Object.keys(cleanData).length > 0) {
-      logger.warn('Update executed but no fields changed:', { 
-        id, 
-        updateData: cleanData, 
-        existing: existingProduct,
-        after: data 
-      });
+    if (!changed && Object.keys(cleanData).length > 0) {
+      console.warn('⚠️ WARNING: Update executed but values did not change!');
+      console.warn('Before:', JSON.stringify(existingProduct));
+      console.warn('After:', JSON.stringify(data));
+      console.warn('Update data:', JSON.stringify(cleanData));
     }
-    
-    logger.info('Product updated successfully:', { 
-      id, 
-      updatedFields: Object.keys(cleanData),
-      changedFields,
-      before: existingProduct,
-      after: data
-    });
     
     return data;
   },
