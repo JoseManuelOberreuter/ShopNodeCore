@@ -9,15 +9,13 @@ const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_KEY'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingVars.length > 0) {
-  console.error('⚠️ Missing required environment variables:', missingVars.join(', '));
+  console.error('Missing required environment variables:', missingVars.join(', '));
   console.error('Please configure these in your Vercel project settings');
 }
 
 // Check for recommended environment variables
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY is not set');
-  console.warn('   Admin operations (product/user management) may fail due to RLS policies');
-  console.warn('   Please configure SUPABASE_SERVICE_ROLE_KEY in your Vercel project settings');
+  console.warn('SUPABASE_SERVICE_ROLE_KEY is not set - Admin operations may fail due to RLS policies');
 }
 
 // Import database connection (Supabase client is created immediately on import)

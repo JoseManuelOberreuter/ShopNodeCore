@@ -112,45 +112,32 @@ export const productService = {
       return acc;
     }, {});
     
-    // Use console.log for Vercel visibility
-    console.log('🔵 ProductModel.update called:', JSON.stringify({ id, updateData: cleanData }));
-    
     // First verify the product exists
     const { data: existingProduct, error: findError } = await supabaseAdmin
       .from('products')
-      .select('id, is_featured, is_on_sale, name')
+      .select('id')
       .eq('id', id)
       .maybeSingle();
     
     if (findError) {
-      console.error('❌ Error finding product:', findError);
+      logger.error('Error finding product:', { id, error: findError });
       throw findError;
     }
     
     if (!existingProduct) {
-      console.error('❌ Product not found:', id);
       throw new Error(`Producto con ID ${id} no encontrado`);
     }
     
-    console.log('🔵 Product BEFORE update:', JSON.stringify(existingProduct));
-    console.log('🔵 Will update with:', JSON.stringify(cleanData));
-    
     // Perform the update
-    const { error: updateError, data: updateResult } = await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('products')
       .update(cleanData)
-      .eq('id', id)
-      .select('id'); // Select just id to verify update worked
+      .eq('id', id);
 
     if (updateError) {
-      console.error('❌ Update error:', updateError);
+      logger.error('Error updating product:', { id, error: updateError });
       throw updateError;
     }
-    
-    console.log('🔵 Update result:', JSON.stringify(updateResult));
-    
-    // Wait a moment for consistency
-    await new Promise(resolve => setTimeout(resolve, 200));
     
     // Fetch the updated product
     const { data, error: selectError } = await supabaseAdmin
@@ -160,32 +147,12 @@ export const productService = {
       .single();
 
     if (selectError) {
-      console.error('❌ Select error:', selectError);
+      logger.error('Error fetching updated product:', { id, error: selectError });
       throw selectError;
     }
     
     if (!data) {
-      console.error('❌ No data after update');
       throw new Error(`Producto con ID ${id} no encontrado después de la actualización`);
-    }
-    
-    console.log('🔵 Product AFTER update:', JSON.stringify({
-      id: data.id,
-      name: data.name,
-      is_featured: data.is_featured,
-      is_on_sale: data.is_on_sale
-    }));
-    
-    // Verify changes
-    const changed = Object.keys(cleanData).some(key => {
-      return JSON.stringify(existingProduct[key]) !== JSON.stringify(data[key]);
-    });
-    
-    if (!changed && Object.keys(cleanData).length > 0) {
-      console.warn('⚠️ WARNING: Update executed but values did not change!');
-      console.warn('Before:', JSON.stringify(existingProduct));
-      console.warn('After:', JSON.stringify(data));
-      console.warn('Update data:', JSON.stringify(cleanData));
     }
     
     return data;

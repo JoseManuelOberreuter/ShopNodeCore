@@ -13,11 +13,11 @@ let supabaseAdmin;
 
 // Cliente público (anon key) - respeta RLS para operaciones públicas
 if (!supabaseUrl) {
-  console.error('⚠️ SUPABASE_URL is not set - Supabase operations will fail');
+  console.error('SUPABASE_URL is not set - Supabase operations will fail');
   // Create a dummy client to prevent crashes on import
   supabase = createClient('https://dummy.supabase.co', supabaseKey || '');
 } else if (!supabaseKey) {
-  console.error('⚠️ SUPABASE_KEY is not set - Supabase operations will fail');
+  console.error('SUPABASE_KEY is not set - Supabase operations will fail');
   // Create a dummy client to prevent crashes on import
   supabase = createClient(supabaseUrl, '');
 } else {
@@ -26,17 +26,15 @@ if (!supabaseUrl) {
 
 // Cliente administrativo (service role key) - ignora RLS para operaciones administrativas
 if (!supabaseUrl) {
-  console.error('⚠️ SUPABASE_URL is not set - Admin Supabase operations will fail');
+  console.error('SUPABASE_URL is not set - Admin Supabase operations will fail');
   supabaseAdmin = createClient('https://dummy.supabase.co', supabaseServiceRoleKey || '');
 } else if (!supabaseServiceRoleKey) {
-  console.error('❌ SUPABASE_SERVICE_ROLE_KEY is not set - Admin operations WILL FAIL due to RLS');
-  console.error('   Please configure SUPABASE_SERVICE_ROLE_KEY in your environment variables');
-  console.error('   Falling back to anon key, but this may not work with RLS policies');
+  console.error('SUPABASE_SERVICE_ROLE_KEY is not set - Admin operations will fail due to RLS');
+  console.error('Falling back to anon key, but this may not work with RLS policies');
   // Fallback to anon key if service role key is not set (for backward compatibility)
   // WARNING: This will likely fail with RLS policies that require service_role
   supabaseAdmin = createClient(supabaseUrl, supabaseKey || '');
 } else {
-  console.log('✅ SUPABASE_SERVICE_ROLE_KEY configured - Admin operations enabled');
   supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 }
 
@@ -54,9 +52,9 @@ const connectDB = async () => {
     if (error && error.code !== 'PGRST116') { // PGRST116 es "tabla no encontrada", lo cual es OK
       throw error
     }
-    console.log('✅ Conectado a Supabase');
+    // Connection successful
   } catch (error) {
-    console.error('❌ Error al conectar a Supabase:', error);
+    console.error('Error al conectar a Supabase:', error);
     // Don't exit in serverless environments
     if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
       process.exit(1);

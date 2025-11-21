@@ -455,8 +455,8 @@ export const deleteProduct = async (req, res) => {
       return errorResponse(res, idValidation.error, 400);
     }
     
-    // Verify if product exists
-    const existingProduct = await productService.findById(idValidation.id);
+    // Verify if product exists (use findByIdAny for admin operations)
+    const existingProduct = await productService.findByIdAny(idValidation.id);
     
     if (!existingProduct) {
       return notFoundResponse(res, 'Producto');
@@ -468,7 +468,21 @@ export const deleteProduct = async (req, res) => {
     return successResponse(res, null, 'Producto eliminado exitosamente');
 
   } catch (error) {
-    logger.error('Error eliminando producto:', { message: error.message });
+    logger.error('Error eliminando producto:', { 
+      message: error.message,
+      stack: error.stack,
+      error: error,
+      productId: req.params?.id,
+      errorName: error.name,
+      errorCode: error.code
+    });
+    
+    // If it's a not found error, return 404
+    if (error.code === 'PGRST116' || error.message?.includes('no encontrado')) {
+      return notFoundResponse(res, 'Producto');
+    }
+    
+    // For other errors, return 500 with generic message in production
     return serverErrorResponse(res, error);
   }
 };
@@ -512,8 +526,8 @@ export const updateStock = async (req, res) => {
       return errorResponse(res, stockValidation.error, 400);
     }
 
-    // Verify if product exists
-    const existingProduct = await productService.findById(idValidation.id);
+    // Verify if product exists (use findByIdAny for admin operations)
+    const existingProduct = await productService.findByIdAny(idValidation.id);
     if (!existingProduct) {
       return notFoundResponse(res, 'Producto');
     }
@@ -538,7 +552,22 @@ export const updateStock = async (req, res) => {
     }, 'Stock actualizado exitosamente');
 
   } catch (error) {
-    logger.error('Error actualizando stock:', { message: error.message });
+    logger.error('Error actualizando stock:', { 
+      message: error.message,
+      stack: error.stack,
+      error: error,
+      productId: req.params?.id,
+      body: req.body,
+      errorName: error.name,
+      errorCode: error.code
+    });
+    
+    // If it's a not found error, return 404
+    if (error.code === 'PGRST116' || error.message?.includes('no encontrado')) {
+      return notFoundResponse(res, 'Producto');
+    }
+    
+    // For other errors, return 500 with generic message in production
     return serverErrorResponse(res, error);
   }
 };
