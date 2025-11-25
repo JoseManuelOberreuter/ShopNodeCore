@@ -1,6 +1,6 @@
 // utils/formatters.js
 // Helper functions for formatting response data
-import { calculateProductPrice } from './productPriceHelper.js';
+import { calculateProductPrice, isProductOnSale } from './productPriceHelper.js';
 
 /**
  * Format user data for response (excluding sensitive information)
@@ -148,6 +148,9 @@ export const formatCart = (cart) => {
       finalPrice = calculateProductPrice(product);
     }
     
+    // Check if product is currently on sale (considering dates)
+    const currentlyOnSale = product ? isProductOnSale(product) : false;
+    
     return {
       id: item.id,
       productId: item.product_id,
@@ -156,10 +159,9 @@ export const formatCart = (cart) => {
       quantity: item.quantity,
       subtotal: finalPrice * item.quantity,
       // Include sale information for frontend display
-      isOnSale: product ? (product.is_on_sale && product.discount_percentage && 
-        product.sale_start_date && product.sale_end_date) : false,
+      isOnSale: currentlyOnSale,
       discountPercentage: product?.discount_percentage || null,
-      originalPrice: product?.price || item.price
+      originalPrice: product?.price || item.price // Always use product's base price as original
     };
   });
   
