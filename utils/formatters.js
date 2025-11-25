@@ -161,7 +161,12 @@ export const formatCart = (cart) => {
       // Include sale information for frontend display
       isOnSale: currentlyOnSale,
       discountPercentage: product?.discount_percentage || null,
-      originalPrice: product?.price || item.price // Always use product's base price as original
+      originalPrice: product?.price || item.price, // Always use product's base price as original
+      // Include product details to avoid additional API calls
+      image: product?.image || '/placeholder-product.svg',
+      description: product?.description || '',
+      stock: product?.stock ?? 999,
+      category: product?.category || 'General'
     };
   });
   

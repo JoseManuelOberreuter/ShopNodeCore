@@ -45,6 +45,8 @@ export const cartService = {
             image,
             is_active,
             price,
+            stock,
+            category,
             is_on_sale,
             discount_percentage,
             sale_start_date,
