@@ -4,6 +4,7 @@ import { validateProductForCart, validateCartItemData, validateProductExists, va
 import { requireAuth } from '../utils/authHelper.js';
 import { successResponse, errorResponse, notFoundResponse, serverErrorResponse } from '../utils/responseHelper.js';
 import { formatCart } from '../utils/formatters.js';
+import { calculateProductPrice } from '../utils/productPriceHelper.js';
 
 // Helper function to get or create cart
 async function getOrCreateCart(userId) {
@@ -107,8 +108,11 @@ export const addToCart = async (req, res) => {
       return errorResponse(res, productValidation.error, statusCode);
     }
 
-    // Add item to cart
-    await cartService.addItem(cart.id, productId, quantity, productValidation.product.price);
+    // Calculate final price considering current offers
+    const finalPrice = calculateProductPrice(productValidation.product);
+
+    // Add item to cart with calculated price
+    await cartService.addItem(cart.id, productId, quantity, finalPrice);
     
     // Get updated cart
     const updatedCart = await cartService.findByUserId(req.user.id);
@@ -156,8 +160,11 @@ export const updateCartItem = async (req, res) => {
       return errorResponse(res, productValidation.error, statusCode);
     }
 
-    // Update item quantity
-    await cartService.updateItemQuantity(cart.id, productId, quantity);
+    // Calculate final price considering current offers (price may have changed)
+    const finalPrice = calculateProductPrice(productValidation.product);
+
+    // Update item quantity and price (in case offer status changed)
+    await cartService.updateItemQuantityAndPrice(cart.id, productId, quantity, finalPrice);
     
     // Get updated cart
     const updatedCart = await cartService.findByUserId(req.user.id);

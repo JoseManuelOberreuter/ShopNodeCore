@@ -43,7 +43,12 @@ export const cartService = {
             name,
             description,
             image,
-            is_active
+            is_active,
+            price,
+            is_on_sale,
+            discount_percentage,
+            sale_start_date,
+            sale_end_date
           )
         )
       `)
@@ -66,10 +71,10 @@ export const cartService = {
       .single();
 
     if (existingItem) {
-      // Actualizar cantidad
+      // Actualizar cantidad y precio (el precio puede haber cambiado si cambió el estado de oferta)
       const { data, error } = await client
         .from('cart_items')
-        .update({ quantity: existingItem.quantity + quantity })
+        .update({ quantity: existingItem.quantity + quantity, price })
         .eq('id', existingItem.id)
         .select()
         .single();
@@ -102,6 +107,22 @@ export const cartService = {
     const { data, error } = await client
       .from('cart_items')
       .update({ quantity })
+      .eq('cart_id', cartId)
+      .eq('product_id', productId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    await this.updateCartTotal(cartId);
+    return data;
+  },
+
+  // Actualizar cantidad y precio de item (útil cuando cambia el estado de oferta)
+  async updateItemQuantityAndPrice(cartId, productId, quantity, price) {
+    const client = ensureAdminClient();
+    const { data, error } = await client
+      .from('cart_items')
+      .update({ quantity, price })
       .eq('cart_id', cartId)
       .eq('product_id', productId)
       .select()

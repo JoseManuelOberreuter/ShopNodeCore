@@ -1,5 +1,6 @@
 // utils/formatters.js
 // Helper functions for formatting response data
+import { calculateProductPrice } from './productPriceHelper.js';
 
 /**
  * Format user data for response (excluding sensitive information)
@@ -128,6 +129,7 @@ export const formatOrder = (order, includeItems = true) => {
 
 /**
  * Format cart data for response
+ * Recalculates prices based on current offer status
  * @param {object} cart - Cart object from database
  * @returns {object} - Formatted cart object
  */
@@ -135,23 +137,42 @@ export const formatCart = (cart) => {
   if (!cart) return null;
 
   const items = cart.cart_items || [];
-  const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
-  const totalAmount = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  
+  // Recalculate prices based on current offer status
+  const itemsWithRecalculatedPrices = items.map(item => {
+    const product = item.products;
+    let finalPrice = item.price; // Default to stored price
+    
+    // If we have full product information, recalculate price
+    if (product && product.price !== undefined) {
+      finalPrice = calculateProductPrice(product);
+    }
+    
+    return {
+      id: item.id,
+      productId: item.product_id,
+      productName: product?.name || '',
+      price: finalPrice, // Use recalculated price
+      quantity: item.quantity,
+      subtotal: finalPrice * item.quantity,
+      // Include sale information for frontend display
+      isOnSale: product ? (product.is_on_sale && product.discount_percentage && 
+        product.sale_start_date && product.sale_end_date) : false,
+      discountPercentage: product?.discount_percentage || null,
+      originalPrice: product?.price || item.price
+    };
+  });
+  
+  const totalItems = itemsWithRecalculatedPrices.reduce((acc, item) => acc + item.quantity, 0);
+  const totalAmount = itemsWithRecalculatedPrices.reduce((acc, item) => acc + item.subtotal, 0);
 
   return {
     id: cart.id,
     userId: cart.user_id,
-    items: items.map(item => ({
-      id: item.id,
-      productId: item.product_id,
-      productName: item.products?.name || '',
-      price: item.price,
-      quantity: item.quantity,
-      subtotal: item.price * item.quantity
-    })),
+    items: itemsWithRecalculatedPrices,
     totalItems,
     totalAmount,
-    itemCount: items.length,
+    itemCount: itemsWithRecalculatedPrices.length,
     createdAt: cart.created_at,
     updatedAt: cart.updated_at
   };
