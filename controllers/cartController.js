@@ -14,14 +14,71 @@ async function getOrCreateCart(userId) {
   return cart;
 }
 
+// Helper function to clean inactive products from cart
+async function cleanInactiveProducts(cart) {
+  if (!cart || !cart.cart_items || !Array.isArray(cart.cart_items)) {
+    return [];
+  }
+
+  const removedProductIds = [];
+  
+  for (const item of cart.cart_items) {
+    // Check if product is inactive or null/undefined
+    const product = item.products;
+    if (!product || product.is_active === false) {
+      try {
+        await cartService.removeItem(cart.id, item.product_id);
+        removedProductIds.push(item.product_id);
+        
+        logger.info('Producto inactivo eliminado del carrito', {
+          cartId: cart.id,
+          productId: item.product_id,
+          productName: product?.name || 'Desconocido'
+        });
+      } catch (error) {
+        logger.error('Error eliminando producto inactivo del carrito', {
+          cartId: cart.id,
+          productId: item.product_id,
+          error: error.message
+        });
+      }
+    }
+  }
+  
+  return removedProductIds;
+}
+
 export const getCart = async (req, res) => {
   try {
     if (!requireAuth(req, res)) return;
     
-    const cart = await getOrCreateCart(req.user.id);
+    let cart = await getOrCreateCart(req.user.id);
+    
+    // Clean inactive products before returning
+    const removedProductIds = await cleanInactiveProducts(cart);
+    
+    // If products were removed, get the updated cart
+    if (removedProductIds.length > 0) {
+      cart = await cartService.findByUserId(req.user.id);
+      logger.info('Productos inactivos eliminados del carrito', {
+        userId: req.user.id,
+        removedCount: removedProductIds.length,
+        removedProductIds
+      });
+    }
+    
     const formattedCart = formatCart(cart);
     
-    return successResponse(res, formattedCart);
+    // Add information about removed products to response
+    const responseData = {
+      ...formattedCart,
+      removedProducts: removedProductIds.length > 0 ? {
+        count: removedProductIds.length,
+        productIds: removedProductIds
+      } : undefined
+    };
+    
+    return successResponse(res, responseData);
   } catch (error) {
     logger.error('Error obteniendo carrito:', { message: error.message, userId: req.user?.id });
     return serverErrorResponse(res, error);
@@ -205,14 +262,32 @@ export const getCartSummary = async (req, res) => {
   try {
     if (!requireAuth(req, res)) return;
     
-    const cart = await getOrCreateCart(req.user.id);
+    let cart = await getOrCreateCart(req.user.id);
+    
+    // Clean inactive products before returning
+    const removedProductIds = await cleanInactiveProducts(cart);
+    
+    // If products were removed, get the updated cart
+    if (removedProductIds.length > 0) {
+      cart = await cartService.findByUserId(req.user.id);
+      logger.info('Productos inactivos eliminados del carrito (summary)', {
+        userId: req.user.id,
+        removedCount: removedProductIds.length,
+        removedProductIds
+      });
+    }
+    
     const formattedCart = formatCart(cart);
 
     return successResponse(res, {
       totalItems: formattedCart.totalItems,
       totalAmount: formattedCart.totalAmount,
       itemCount: formattedCart.itemCount,
-      items: formattedCart.items
+      items: formattedCart.items,
+      removedProducts: removedProductIds.length > 0 ? {
+        count: removedProductIds.length,
+        productIds: removedProductIds
+      } : undefined
     });
   } catch (error) {
     logger.error('Error obteniendo resumen del carrito:', {
