@@ -1,9 +1,19 @@
-import { supabase } from '../database.js';
+import { supabaseAdmin } from '../database.js';
+import logger from '../utils/logger.js';
+
+function ensureAdminClient() {
+  if (!supabaseAdmin) {
+    logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+    throw new Error('Service role key not configured. Cart operations are disabled.');
+  }
+  return supabaseAdmin;
+}
 
 export const cartService = {
   // Crear carrito para usuario
   async create(userId) {
-    const { data, error } = await supabase
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('carts')
       .insert([{
         user_id: userId,
@@ -18,7 +28,8 @@ export const cartService = {
 
   // Buscar carrito por usuario
   async findByUserId(userId) {
-    const { data, error } = await supabase
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('carts')
       .select(`
         *,
@@ -45,8 +56,9 @@ export const cartService = {
 
   // Agregar item al carrito
   async addItem(cartId, productId, quantity, price) {
+    const client = ensureAdminClient();
     // Verificar si el item ya existe
-    const { data: existingItem } = await supabase
+    const { data: existingItem } = await client
       .from('cart_items')
       .select('*')
       .eq('cart_id', cartId)
@@ -55,7 +67,7 @@ export const cartService = {
 
     if (existingItem) {
       // Actualizar cantidad
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('cart_items')
         .update({ quantity: existingItem.quantity + quantity })
         .eq('id', existingItem.id)
@@ -67,7 +79,7 @@ export const cartService = {
       return data;
     } else {
       // Crear nuevo item
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('cart_items')
         .insert([{
           cart_id: cartId,
@@ -86,7 +98,8 @@ export const cartService = {
 
   // Actualizar cantidad de item
   async updateItemQuantity(cartId, productId, quantity) {
-    const { data, error } = await supabase
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('cart_items')
       .update({ quantity })
       .eq('cart_id', cartId)
@@ -101,7 +114,8 @@ export const cartService = {
 
   // Eliminar item del carrito
   async removeItem(cartId, productId) {
-    const { error } = await supabase
+    const client = ensureAdminClient();
+    const { error } = await client
       .from('cart_items')
       .delete()
       .eq('cart_id', cartId)
@@ -114,7 +128,8 @@ export const cartService = {
 
   // Limpiar carrito
   async clearCart(cartId) {
-    const { error } = await supabase
+    const client = ensureAdminClient();
+    const { error } = await client
       .from('cart_items')
       .delete()
       .eq('cart_id', cartId);
@@ -126,7 +141,8 @@ export const cartService = {
 
   // Actualizar total del carrito
   async updateCartTotal(cartId) {
-    const { data: items, error } = await supabase
+    const client = ensureAdminClient();
+    const { data: items, error } = await client
       .from('cart_items')
       .select('quantity, price')
       .eq('cart_id', cartId);
@@ -137,7 +153,7 @@ export const cartService = {
       return total + (item.price * item.quantity);
     }, 0);
 
-    const { data, error: updateError } = await supabase
+    const { data, error: updateError } = await client
       .from('carts')
       .update({ total_amount: totalAmount })
       .eq('id', cartId)
