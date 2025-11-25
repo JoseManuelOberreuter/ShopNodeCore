@@ -124,7 +124,12 @@ export const validatePrice = (price) => {
  * @returns {{isValid: boolean, stock: number|null, error: string|null}}
  */
 export const validateStock = (stock, allowEmpty = false) => {
-  return validatePositiveInteger(stock, 'Stock', allowEmpty);
+  const result = validatePositiveInteger(stock, 'Stock', allowEmpty);
+  return {
+    isValid: result.isValid,
+    stock: result.value,
+    error: result.error
+  };
 };
 
 /**
