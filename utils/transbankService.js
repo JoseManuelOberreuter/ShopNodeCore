@@ -46,27 +46,68 @@ if (environment === 'integration') {
 
 export const transbankService = {
   // Crear transacción
+  // Parameters according to Transbank SDK: (buy_order, session_id, amount, return_url)
   async createTransaction(amount, orderId, sessionId, returnUrl) {
     try {
+      // Validate parameters
+      if (!orderId || typeof orderId !== 'string') {
+        throw new Error('orderId debe ser un string válido');
+      }
+      if (!sessionId || typeof sessionId !== 'string') {
+        throw new Error('sessionId debe ser un string válido');
+      }
+      if (typeof amount !== 'number' || amount <= 0) {
+        throw new Error('amount debe ser un número mayor a 0');
+      }
+      if (!returnUrl || typeof returnUrl !== 'string') {
+        throw new Error('returnUrl debe ser un string válido');
+      }
+
+      // Ensure orderId and sessionId are strings (SDK requirement)
+      const buyOrder = String(orderId);
+      const sessionIdStr = String(sessionId);
+      
+      logger.info('Creating Transbank transaction:', {
+        buyOrder,
+        sessionId: sessionIdStr,
+        amount,
+        returnUrl: returnUrl.substring(0, 50) + '...' // Log partial URL for security
+      });
+
+      // Call Transbank SDK: create(buy_order, session_id, amount, return_url)
       const response = await webpayPlus.create(
-        orderId,
-        sessionId,
+        buyOrder,
+        sessionIdStr,
         amount,
         returnUrl
       );
       
-      // Validar que la respuesta tenga la estructura esperada
+      // Validate that the response has the expected structure
       if (!response || !response.token || !response.url) {
+        logger.error('Invalid Transbank response structure:', {
+          hasResponse: !!response,
+          hasToken: !!response?.token,
+          hasUrl: !!response?.url,
+          responseKeys: response ? Object.keys(response) : []
+        });
         throw new Error('Respuesta inválida de Transbank: falta token o URL');
       }
+      
+      logger.info('Transbank transaction created successfully:', {
+        token: response.token.substring(0, 10) + '...', // Log partial token for security
+        hasUrl: !!response.url
+      });
       
       return response;
     } catch (error) {
       logger.error('Error creating Transbank transaction:', {
         message: error.message,
-        orderId,
+        stack: error.stack,
+        orderId: String(orderId || 'N/A'),
+        amount,
         status: error.response?.status,
-        statusText: error.response?.statusText
+        statusText: error.response?.statusText,
+        responseData: error.response?.data
       });
       
       throw error;

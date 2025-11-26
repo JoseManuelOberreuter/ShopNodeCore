@@ -447,7 +447,16 @@ export const validateShippingAddress = (address) => {
   }
 
   const requiredFields = ['street', 'city', 'state', 'zipCode', 'country'];
-  const missingFields = requiredFields.filter(field => !address[field] || address[field].trim() === '');
+  const missingFields = requiredFields.filter(field => {
+    const value = address[field];
+    // Check if field is missing, null, or undefined
+    if (value === null || value === undefined || value === '') {
+      return true;
+    }
+    // Convert to string and check if it's empty after trimming
+    const stringValue = String(value).trim();
+    return stringValue === '';
+  });
 
   if (missingFields.length > 0) {
     return {

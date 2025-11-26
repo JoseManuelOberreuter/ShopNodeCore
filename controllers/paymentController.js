@@ -15,14 +15,27 @@ export const initiatePayment = async (req, res) => {
     const { shippingAddress } = req.body;
     
     // Validate shipping address
+    logger.info('Validating shipping address:', {
+      userId: req.user.id,
+      hasShippingAddress: !!shippingAddress,
+      shippingAddressKeys: shippingAddress ? Object.keys(shippingAddress) : []
+    });
+    
     const addressValidation = validateShippingAddress(shippingAddress);
     if (!addressValidation.isValid) {
+      logger.warn('Shipping address validation failed:', {
+        userId: req.user.id,
+        error: addressValidation.error,
+        missingFields: addressValidation.missingFields
+      });
       return errorResponse(res, addressValidation.error, 400);
     }
     
     // Get user cart
+    logger.info('Fetching user cart:', { userId: req.user.id });
     const cart = await cartService.findByUserId(req.user.id);
     if (!cart || !cart.cart_items || cart.cart_items.length === 0) {
+      logger.warn('Empty cart detected:', { userId: req.user.id });
       return errorResponse(res, 'El carrito está vacío.', 400);
     }
 
@@ -30,6 +43,12 @@ export const initiatePayment = async (req, res) => {
     const totalAmount = cart.cart_items.reduce((acc, item) => 
       acc + (item.price * item.quantity), 0
     );
+
+    logger.info('Creating order:', {
+      userId: req.user.id,
+      totalAmount,
+      itemCount: cart.cart_items.length
+    });
 
     // Create order
     const order = await orderService.create({
@@ -55,10 +74,19 @@ export const initiatePayment = async (req, res) => {
     
     // Validate that FRONTEND_URL is configured
     if (!process.env.FRONTEND_URL) {
+      logger.error('FRONTEND_URL environment variable not configured');
       return serverErrorResponse(res, new Error('FRONTEND_URL no está configurado'), 'Error de configuración: FRONTEND_URL no está configurado');
     }
     
     const returnUrl = `${process.env.FRONTEND_URL}/payment/return`;
+    
+    logger.info('Initiating Transbank transaction:', {
+      orderId: order.id,
+      orderNumber: order.order_number,
+      amount: totalAmount,
+      sessionId,
+      returnUrl: returnUrl.substring(0, 50) + '...'
+    });
     
     const transbankResponse = await transbankService.createTransaction(
       totalAmount,
@@ -76,6 +104,12 @@ export const initiatePayment = async (req, res) => {
     // Build full URL with token
     const fullTransbankUrl = `${transbankResponse.url}?token_ws=${transbankResponse.token}`;
 
+    logger.info('Payment initiation successful:', {
+      orderId: order.id,
+      orderNumber: order.order_number,
+      amount: totalAmount
+    });
+
     return successResponse(res, {
       orderId: order.id,
       orderNumber: order.order_number,
@@ -85,8 +119,29 @@ export const initiatePayment = async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error initiating payment:', { message: error.message });
-    return serverErrorResponse(res, error, 'Error al procesar el pago');
+    // Enhanced error logging with more context
+    logger.error('Error initiating payment:', {
+      message: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      hasShippingAddress: !!req.body?.shippingAddress,
+      errorType: error.constructor?.name,
+      transbankError: error.response?.data || error.response?.statusText,
+      statusCode: error.response?.status
+    });
+    
+    // Provide more specific error messages based on error type
+    let errorMessage = 'Error al procesar el pago';
+    
+    if (error.message.includes('FRONTEND_URL')) {
+      errorMessage = 'Error de configuración del servidor. Por favor, contacta al soporte.';
+    } else if (error.message.includes('orderId') || error.message.includes('sessionId') || error.message.includes('amount')) {
+      errorMessage = 'Error en los parámetros de la transacción. Por favor, intenta nuevamente.';
+    } else if (error.response?.status === 500 && error.response?.data) {
+      errorMessage = 'Error en el servicio de pagos. Por favor, intenta nuevamente más tarde.';
+    }
+    
+    return serverErrorResponse(res, error, errorMessage);
   }
 };
 
