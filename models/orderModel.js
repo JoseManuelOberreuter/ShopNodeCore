@@ -199,6 +199,11 @@ export const orderService = {
           quantity,
           price,
           subtotal
+        ),
+        users:user_id (
+          id,
+          name,
+          email
         )
       `)
       .order('created_at', { ascending: false });

@@ -94,7 +94,7 @@ export const getUserOrders = async (req, res) => {
     // Format orders
     const formattedOrders = paginatedOrders.map(order => formatOrder(order, false));
 
-    const pagination = calculatePagination(page, limit, totalOrders, paginatedOrders.length);
+    const pagination = calculatePagination(page, limit, totalOrders);
 
     return successResponse(res, {
         orders: formattedOrders,
@@ -219,7 +219,7 @@ export const getAllOrders = async (req, res) => {
   try {
     if (!requireAdmin(req, res)) return;
 
-    const { status, paymentStatus, userId } = req.query;
+    const { status, paymentStatus, userId, search } = req.query;
     const { page, limit, offset } = parsePaginationParams(req.query);
 
     let orders = await orderService.findAll();
@@ -239,6 +239,24 @@ export const getAllOrders = async (req, res) => {
       orders = orders.filter(order => order.user_id === parseInt(userId));
     }
 
+    // Search filter - search in order number, order ID, user email, user name
+    if (search) {
+      const searchLower = search.toLowerCase();
+      orders = orders.filter(order => {
+        const orderNumber = order.order_number?.toLowerCase() || '';
+        const orderId = order.id?.toString().toLowerCase() || '';
+        const userIdStr = order.user_id?.toString().toLowerCase() || '';
+        const userEmail = order.users?.email?.toLowerCase() || '';
+        const userName = order.users?.name?.toLowerCase() || '';
+        
+        return orderNumber.includes(searchLower) || 
+               orderId.includes(searchLower) ||
+               userIdStr.includes(searchLower) ||
+               userEmail.includes(searchLower) ||
+               userName.includes(searchLower);
+      });
+    }
+
     // Pagination
     const totalOrders = orders.length;
     const paginatedOrders = orders.slice(offset, offset + limit);
@@ -246,7 +264,7 @@ export const getAllOrders = async (req, res) => {
     // Format orders
     const formattedOrders = paginatedOrders.map(order => formatOrder(order, false));
 
-    const pagination = calculatePagination(page, limit, totalOrders, paginatedOrders.length);
+    const pagination = calculatePagination(page, limit, totalOrders);
 
     return successResponse(res, {
         orders: formattedOrders,

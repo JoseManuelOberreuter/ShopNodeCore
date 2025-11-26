@@ -104,9 +104,25 @@ export const formatOrder = (order, includeItems = true) => {
     updatedAt: order.updated_at
   };
 
+  // Include user information if available
+  if (order.users) {
+    formatted.customerName = order.users.name;
+    formatted.customerEmail = order.users.email;
+    formatted.user = {
+      id: order.users.id,
+      name: order.users.name,
+      email: order.users.email
+    };
+  }
+
   // Include Transbank status if available
   if (order.transbank_token) {
     formatted.transbankToken = order.transbank_token;
+  }
+
+  // Include authorization code if available (from Transbank response)
+  if (order.authorization_code) {
+    formatted.authorizationCode = order.authorization_code;
   }
 
   // Include order items if requested
