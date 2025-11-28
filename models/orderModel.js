@@ -1,13 +1,22 @@
 import { supabase, supabaseAdmin } from '../database.js';
 import logger from '../utils/logger.js';
 
+function ensureAdminClient() {
+  if (!supabaseAdmin) {
+    logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+    throw new Error('Service role key not configured. Order operations are disabled.');
+  }
+  return supabaseAdmin;
+}
+
 export const orderService = {
   // Crear orden
   async create(orderData) {
     try {
+      const client = ensureAdminClient();
       const orderNumber = this.generateOrderNumber();
       
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('orders')
         .insert([{
           user_id: orderData.userId,
@@ -45,6 +54,7 @@ export const orderService = {
 
   // Crear items de orden
   async createOrderItems(orderId, items) {
+    const client = ensureAdminClient();
     const orderItems = items.map(item => ({
       order_id: orderId,
       product_id: item.productId,
@@ -54,7 +64,7 @@ export const orderService = {
       subtotal: item.price * item.quantity
     }));
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('order_items')
       .insert(orderItems)
       .select();
@@ -153,7 +163,8 @@ export const orderService = {
 
   // Actualizar token de Transbank
   async updateTransbankToken(orderId, token) {
-    const { data, error } = await supabase
+    const client = ensureAdminClient();
+    const { data, error } = await client
       .from('orders')
       .update({ transbank_token: token })
       .eq('id', orderId)
@@ -166,12 +177,13 @@ export const orderService = {
 
   // Actualizar estado de pago
   async updatePaymentStatus(orderId, paymentStatus, transbankStatus = null) {
+    const client = ensureAdminClient();
     const updateData = { payment_status: paymentStatus };
     if (transbankStatus) {
       updateData.transbank_status = transbankStatus;
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('orders')
       .update(updateData)
       .eq('id', orderId)

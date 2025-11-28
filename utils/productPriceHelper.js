@@ -52,3 +52,4 @@ export const calculateProductPrice = (product) => {
   return product.price;
 };
 
+
