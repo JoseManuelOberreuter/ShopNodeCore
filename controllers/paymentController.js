@@ -1,7 +1,7 @@
 import { transbankService } from '../utils/transbankService.js';
 import { orderService } from '../models/orderModel.js';
 import { cartService } from '../models/cartModel.js';
-import { supabase } from '../database.js';
+import { supabase, supabaseAdmin } from '../database.js';
 import logger from '../utils/logger.js';
 import { requireAuth } from '../utils/authHelper.js';
 import { successResponse, errorResponse, notFoundResponse, serverErrorResponse } from '../utils/responseHelper.js';
@@ -157,14 +157,24 @@ export const confirmPayment = async (req, res) => {
     // Confirm transaction in Transbank
     const transbankResponse = await transbankService.confirmTransaction(token_ws);
 
-    // Find order by token
-    const { data: orders, error } = await supabase
+    // Find order by token - Use supabaseAdmin to bypass RLS since this is a callback endpoint
+    const { supabaseAdmin } = await import('../database.js');
+    if (!supabaseAdmin) {
+      logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
+      return serverErrorResponse(res, new Error('Service role key not configured'), 'Error de configuración del servidor');
+    }
+
+    const { data: orders, error } = await supabaseAdmin
       .from('orders')
       .select('*')
       .eq('transbank_token', token_ws)
       .single();
 
     if (error || !orders) {
+      logger.error('Order not found by token:', { 
+        token: token_ws.substring(0, 10) + '...', 
+        error: error?.message 
+      });
       return notFoundResponse(res, 'Orden');
     }
 
@@ -180,12 +190,15 @@ export const confirmPayment = async (req, res) => {
       await orderService.updateStatus(orders.id, 'confirmed');
     }
 
+    // Use order amount from database, fallback to transbank response amount
+    const amount = orders.total_amount || transbankResponse.amount || 0;
+
     return successResponse(res, {
       orderId: orders.id,
       orderNumber: orders.order_number,
       status: transbankResponse.status,
       paymentStatus,
-      amount: transbankResponse.amount,
+      amount: amount,
       authorizationCode: transbankResponse.authorization_code
     });
 
