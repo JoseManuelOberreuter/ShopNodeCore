@@ -6,6 +6,7 @@ import logger from '../utils/logger.js';
 import { requireAuth } from '../utils/authHelper.js';
 import { successResponse, errorResponse, notFoundResponse, serverErrorResponse } from '../utils/responseHelper.js';
 import { validateShippingAddress } from '../utils/validators.js';
+import { sendPaymentConfirmationEmail } from '../utils/mailer.js';
 
 // Initiate payment process
 export const initiatePayment = async (req, res) => {
@@ -166,7 +167,7 @@ export const confirmPayment = async (req, res) => {
 
     const { data: orders, error } = await supabaseAdmin
       .from('orders')
-      .select('*')
+      .select('*, users:user_id (id, email, name)')
       .eq('transbank_token', token_ws)
       .single();
 
@@ -188,6 +189,40 @@ export const confirmPayment = async (req, res) => {
 
     if (transbankResponse.status === 'AUTHORIZED') {
       await orderService.updateStatus(orders.id, 'confirmed');
+
+      // Send payment confirmation email to customer
+      try {
+        const userEmail = orders.users?.email;
+        if (userEmail) {
+          const amount = orders.total_amount || transbankResponse.amount || 0;
+          await sendPaymentConfirmationEmail(
+            userEmail,
+            orders.order_number,
+            orders.id,
+            amount,
+            transbankResponse.authorization_code,
+            'paid'
+          );
+          logger.info('Payment confirmation email sent successfully', {
+            orderId: orders.id,
+            orderNumber: orders.order_number,
+            email: userEmail
+          });
+        } else {
+          logger.warn('User email not found for order, skipping email notification', {
+            orderId: orders.id,
+            userId: orders.user_id
+          });
+        }
+      } catch (emailError) {
+        // Log error but don't fail the payment confirmation
+        logger.error('Error sending payment confirmation email:', {
+          message: emailError.message,
+          orderId: orders.id,
+          orderNumber: orders.order_number,
+          error: emailError
+        });
+      }
     }
 
     // Use order amount from database, fallback to transbank response amount

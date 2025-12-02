@@ -215,4 +215,75 @@ const sendContactAcknowledgementEmail = async (name, email, subject, message) =>
   }
 };
 
-export { sendVerificationEmail, sendPasswordResetEmail, sendContactEmail, sendContactAcknowledgementEmail };
+// Send payment confirmation email
+const sendPaymentConfirmationEmail = async (email, orderNumber, orderId, totalAmount, authorizationCode, paymentStatus) => {
+  if (!process.env.EMAIL_USER) {
+    throw new Error('EMAIL_USER no está configurado en las variables de entorno');
+  }
+
+  // Format amount as Chilean peso (CLP) with format $50.000
+  const formatAmount = (amount) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount).replace('CLP', '').trim();
+  };
+
+  const formattedAmount = formatAmount(totalAmount);
+  const paymentStatusLabel = paymentStatus === 'paid' ? 'Pagado' : paymentStatus;
+
+  const bodyHtml = `
+    <p style="font-size: 18px; font-weight: bold; color: ${brandConfig.secondaryColor}; margin-bottom: 20px; text-align: center;">
+      Tu pago ha sido procesado correctamente
+    </p>
+    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${brandConfig.secondaryColor};">
+      <h3 style="color: ${brandConfig.primaryColor}; margin-top: 0; margin-bottom: 20px;">Detalles del Pedido</h3>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 10px 0; font-weight: bold; color: ${brandConfig.textColor}; width: 40%;">Número de Orden:</td>
+          <td style="padding: 10px 0; color: #333;">${orderNumber}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 10px 0; font-weight: bold; color: ${brandConfig.textColor};">ID de Orden:</td>
+          <td style="padding: 10px 0; color: #333;">${orderId}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 10px 0; font-weight: bold; color: ${brandConfig.textColor};">Monto Total:</td>
+          <td style="padding: 10px 0; color: #333; font-size: 18px; font-weight: bold;">${formattedAmount}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 10px 0; font-weight: bold; color: ${brandConfig.textColor};">Código de Autorización:</td>
+          <td style="padding: 10px 0; color: #333;">${authorizationCode || 'N/A'}</td>
+        </tr>
+        <tr>
+          <td style="padding: 10px 0; font-weight: bold; color: ${brandConfig.textColor};">Estado del Pago:</td>
+          <td style="padding: 10px 0; color: ${brandConfig.secondaryColor}; font-weight: bold;">${paymentStatusLabel}</td>
+        </tr>
+      </table>
+    </div>
+    <p style="font-size: 16px; color: #555; margin-top: 20px;">
+      Gracias por tu compra. Te notificaremos cuando tu pedido sea enviado.
+    </p>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: `¡Pago Exitoso! - Orden ${orderNumber}`,
+    html: buildBrandedEmail({
+      title: '¡Pago Exitoso!',
+      subtitle: 'Confirmación de pago',
+      bodyHtml
+    })
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    throw error;
+  }
+};
+
+export { sendVerificationEmail, sendPasswordResetEmail, sendContactEmail, sendContactAcknowledgementEmail, sendPaymentConfirmationEmail };
