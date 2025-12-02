@@ -132,7 +132,7 @@ export const createProduct = async (req, res) => {
     const productData = {
       name: name.trim(),
       description: description.trim(),
-      price: priceValidation.price,
+      price: priceValidation.value,
       stock: stockValidation.stock || 0,
       category: category.trim(),
       image: imageUrl,
@@ -344,7 +344,7 @@ export const updateProduct = async (req, res) => {
       if (!priceValidation.isValid) {
         return errorResponse(res, priceValidation.error, 400);
       }
-      updateData.price = priceValidation.price;
+      updateData.price = priceValidation.value;
     }
 
     // Validate and update stock (skip if undefined, empty, or string "undefined")
