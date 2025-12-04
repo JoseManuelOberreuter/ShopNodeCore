@@ -10,6 +10,52 @@ import { parsePaginationParams, calculatePagination } from '../utils/paginationH
 import { validateShippingAddress, validateOrderStatus, validateOrderId } from '../utils/validators.js';
 import { calculateOrderStats, calculateDateRange } from '../utils/statsHelper.js';
 
+// Helper function to create an order (shared logic)
+export const createOrderFromCart = async (userId, shippingAddress, notes = null) => {
+  // Validate shipping address
+  const addressValidation = validateShippingAddress(shippingAddress);
+  if (!addressValidation.isValid) {
+    throw new Error(addressValidation.error);
+  }
+
+  // Get user cart
+  const cart = await cartService.findByUserId(userId);
+  if (!cart || !cart.cart_items || cart.cart_items.length === 0) {
+    throw new Error('El carrito está vacío. Agrega productos antes de crear una orden.');
+  }
+
+  // Calculate total
+  const totalAmount = cart.cart_items.reduce((acc, item) => 
+    acc + (item.price * item.quantity), 0
+  );
+
+  // Create order
+  const order = await orderService.create({
+    userId,
+    totalAmount,
+    shippingAddress,
+    paymentMethod: 'webpay',
+    paymentStatus: 'pending',
+    status: 'pending',
+    notes
+  });
+
+  // Create order items
+  const orderItems = cart.cart_items.map(item => ({
+    productId: item.product_id,
+    productName: item.products?.name || '',
+    quantity: item.quantity,
+    price: item.price
+  }));
+
+  await orderService.createOrderItems(order.id, orderItems);
+
+  // Clear cart
+  await cartService.clearCart(cart.id);
+
+  return order;
+};
+
 // Create new order
 export const createOrder = async (req, res) => {
   try {
@@ -17,53 +63,14 @@ export const createOrder = async (req, res) => {
 
     const { shippingAddress, notes } = req.body;
     
-    // Validate shipping address
-    const addressValidation = validateShippingAddress(shippingAddress);
-    if (!addressValidation.isValid) {
-      return errorResponse(res, addressValidation.error, 400);
-    }
-
-    // Get user cart
-    const cart = await cartService.findByUserId(req.user.id);
-    if (!cart || !cart.cart_items || cart.cart_items.length === 0) {
-      return errorResponse(res, 'El carrito está vacío. Agrega productos antes de crear una orden.', 400);
-    }
-
-    // Calculate total
-    const totalAmount = cart.cart_items.reduce((acc, item) => 
-      acc + (item.price * item.quantity), 0
-    );
-
-    // Create order
-    const order = await orderService.create({
-      userId: req.user.id,
-      totalAmount,
-      shippingAddress,
-      paymentMethod: 'webpay',
-      paymentStatus: 'pending',
-      status: 'pending',
-      notes
-    });
-
-    // Create order items
-    const orderItems = cart.cart_items.map(item => ({
-      productId: item.product_id,
-      productName: item.products?.name || '',
-      quantity: item.quantity,
-      price: item.price
-    }));
-
-    await orderService.createOrderItems(order.id, orderItems);
-
-    // Clear cart
-    await cartService.clearCart(cart.id);
+    const order = await createOrderFromCart(req.user.id, shippingAddress, notes);
 
     const formattedOrder = formatOrder(order, false);
     return successResponse(res, formattedOrder, 'Orden creada exitosamente', 201);
 
   } catch (error) {
     logger.error('Error creating order:', { message: error.message });
-    return serverErrorResponse(res, error, 'Error al crear la orden');
+    return serverErrorResponse(res, error, error.message || 'Error al crear la orden');
   }
 };
 
@@ -261,8 +268,8 @@ export const getAllOrders = async (req, res) => {
     const totalOrders = orders.length;
     const paginatedOrders = orders.slice(offset, offset + limit);
 
-    // Format orders
-    const formattedOrders = paginatedOrders.map(order => formatOrder(order, false));
+    // Format orders (include items for admin view)
+    const formattedOrders = paginatedOrders.map(order => formatOrder(order, true));
 
     const pagination = calculatePagination(page, limit, totalOrders);
 

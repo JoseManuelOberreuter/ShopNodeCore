@@ -1,11 +1,10 @@
 import { transbankService } from '../utils/transbankService.js';
 import { orderService } from '../models/orderModel.js';
-import { cartService } from '../models/cartModel.js';
+import { createOrderFromCart } from './orderController.js';
 import { supabase, supabaseAdmin } from '../database.js';
 import logger from '../utils/logger.js';
 import { requireAuth } from '../utils/authHelper.js';
 import { successResponse, errorResponse, notFoundResponse, serverErrorResponse } from '../utils/responseHelper.js';
-import { validateShippingAddress } from '../utils/validators.js';
 import { sendPaymentConfirmationEmail } from '../utils/mailer.js';
 
 // Initiate payment process
@@ -15,60 +14,19 @@ export const initiatePayment = async (req, res) => {
 
     const { shippingAddress } = req.body;
     
-    // Validate shipping address
-    logger.info('Validating shipping address:', {
+    logger.info('Initiating payment process:', {
       userId: req.user.id,
-      hasShippingAddress: !!shippingAddress,
-      shippingAddressKeys: shippingAddress ? Object.keys(shippingAddress) : []
-    });
-    
-    const addressValidation = validateShippingAddress(shippingAddress);
-    if (!addressValidation.isValid) {
-      logger.warn('Shipping address validation failed:', {
-        userId: req.user.id,
-        error: addressValidation.error,
-        missingFields: addressValidation.missingFields
-      });
-      return errorResponse(res, addressValidation.error, 400);
-    }
-    
-    // Get user cart
-    logger.info('Fetching user cart:', { userId: req.user.id });
-    const cart = await cartService.findByUserId(req.user.id);
-    if (!cart || !cart.cart_items || cart.cart_items.length === 0) {
-      logger.warn('Empty cart detected:', { userId: req.user.id });
-      return errorResponse(res, 'El carrito está vacío.', 400);
-    }
-
-    // Calculate total
-    const totalAmount = cart.cart_items.reduce((acc, item) => 
-      acc + (item.price * item.quantity), 0
-    );
-
-    logger.info('Creating order:', {
-      userId: req.user.id,
-      totalAmount,
-      itemCount: cart.cart_items.length
+      hasShippingAddress: !!shippingAddress
     });
 
-    // Create order
-    const order = await orderService.create({
-      userId: req.user.id,
-      totalAmount,
-      shippingAddress,
-      paymentMethod: 'webpay',
-      paymentStatus: 'pending'
+    // Create order using shared function
+    const order = await createOrderFromCart(req.user.id, shippingAddress);
+
+    logger.info('Order created for payment:', {
+      orderId: order.id,
+      orderNumber: order.order_number,
+      totalAmount: order.total_amount
     });
-
-    // Create order items
-    const orderItems = cart.cart_items.map(item => ({
-      productId: item.product_id,
-      productName: item.products?.name || '',
-      quantity: item.quantity,
-      price: item.price
-    }));
-
-    await orderService.createOrderItems(order.id, orderItems);
 
     // Create Transbank transaction
     const sessionId = `session_${req.user.id}_${Date.now()}`;
@@ -84,13 +42,13 @@ export const initiatePayment = async (req, res) => {
     logger.info('Initiating Transbank transaction:', {
       orderId: order.id,
       orderNumber: order.order_number,
-      amount: totalAmount,
+      amount: order.total_amount,
       sessionId,
       returnUrl: returnUrl.substring(0, 50) + '...'
     });
     
     const transbankResponse = await transbankService.createTransaction(
-      totalAmount,
+      order.total_amount,
       order.order_number,
       sessionId,
       returnUrl
@@ -99,22 +57,19 @@ export const initiatePayment = async (req, res) => {
     // Update order with Transbank token
     await orderService.updateTransbankToken(order.id, transbankResponse.token);
 
-    // Clear cart
-    await cartService.clearCart(cart.id);
-
     // Build full URL with token
     const fullTransbankUrl = `${transbankResponse.url}?token_ws=${transbankResponse.token}`;
 
     logger.info('Payment initiation successful:', {
       orderId: order.id,
       orderNumber: order.order_number,
-      amount: totalAmount
+      amount: order.total_amount
     });
 
     return successResponse(res, {
       orderId: order.id,
       orderNumber: order.order_number,
-      amount: totalAmount,
+      amount: order.total_amount,
       transbankUrl: fullTransbankUrl,
       transbankToken: transbankResponse.token
     });
@@ -134,7 +89,9 @@ export const initiatePayment = async (req, res) => {
     // Provide more specific error messages based on error type
     let errorMessage = 'Error al procesar el pago';
     
-    if (error.message.includes('FRONTEND_URL')) {
+    if (error.message.includes('carrito está vacío')) {
+      errorMessage = error.message;
+    } else if (error.message.includes('FRONTEND_URL')) {
       errorMessage = 'Error de configuración del servidor. Por favor, contacta al soporte.';
     } else if (error.message.includes('orderId') || error.message.includes('sessionId') || error.message.includes('amount')) {
       errorMessage = 'Error en los parámetros de la transacción. Por favor, intenta nuevamente.';

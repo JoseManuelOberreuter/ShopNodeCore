@@ -216,7 +216,13 @@ export const orderService = {
           product_name,
           quantity,
           price,
-          subtotal
+          subtotal,
+          products:product_id (
+            id,
+            name,
+            image,
+            price
+          )
         ),
         users:user_id (
           id,
