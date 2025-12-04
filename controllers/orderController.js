@@ -91,8 +91,8 @@ export const getUserOrders = async (req, res) => {
     const totalOrders = orders.length;
     const paginatedOrders = orders.slice(offset, offset + limit);
 
-    // Format orders
-    const formattedOrders = paginatedOrders.map(order => formatOrder(order, false));
+    // Format orders (include items with product info)
+    const formattedOrders = paginatedOrders.map(order => formatOrder(order, true));
 
     const pagination = calculatePagination(page, limit, totalOrders);
 

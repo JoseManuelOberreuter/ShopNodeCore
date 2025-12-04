@@ -129,7 +129,13 @@ export const orderService = {
           product_name,
           quantity,
           price,
-          subtotal
+          subtotal,
+          products:product_id (
+            id,
+            name,
+            image,
+            price
+          )
         )
       `)
       .eq('user_id', userId)

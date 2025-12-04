@@ -133,7 +133,18 @@ export const formatOrder = (order, includeItems = true) => {
       productName: item.product_name,
       quantity: item.quantity,
       price: item.price,
-      subtotal: item.subtotal
+      subtotal: item.subtotal,
+      product: item.products ? {
+        id: item.products.id,
+        name: item.products.name || item.product_name,
+        image: item.products.image,
+        price: item.products.price
+      } : {
+        id: item.product_id,
+        name: item.product_name,
+        image: null,
+        price: item.price
+      }
     }));
     formatted.itemsCount = order.order_items.length;
   } else if (order.order_items) {
