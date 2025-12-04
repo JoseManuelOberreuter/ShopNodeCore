@@ -249,8 +249,6 @@
  *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
  *         $ref: '#/components/responses/VerificationRequiredError'
- *       403:
- *         $ref: '#/components/responses/VerificationRequiredError'
  *       500:
  *         description: Error interno del servidor
  *         content:

@@ -120,7 +120,7 @@ export const getOrderById = async (req, res) => {
       return errorResponse(res, idValidation.error, 400);
     }
 
-    const order = await orderService.findById(idValidation.orderId);
+    const order = await orderService.findById(idValidation.id);
     if (!order) {
       return notFoundResponse(res, 'Orden');
     }
@@ -168,7 +168,7 @@ export const cancelOrder = async (req, res) => {
       return errorResponse(res, idValidation.error, 400);
     }
 
-    const order = await orderService.findById(idValidation.orderId);
+    const order = await orderService.findById(idValidation.id);
     if (!order) {
       return notFoundResponse(res, 'Orden');
     }
@@ -297,17 +297,17 @@ export const updateOrderStatus = async (req, res) => {
       return errorResponse(res, statusValidation.error, 400);
     }
 
-    const order = await orderService.findById(idValidation.orderId);
+    const order = await orderService.findById(idValidation.id);
     if (!order) {
       return notFoundResponse(res, 'Orden');
     }
 
     // Update status
-    const updatedOrder = await orderService.updateStatus(idValidation.orderId, status);
+    const updatedOrder = await orderService.updateStatus(idValidation.id, status);
 
     // If notes are provided, update them too
     if (notes) {
-      await orderService.updateNotes(idValidation.orderId, notes);
+      await orderService.updateNotes(idValidation.id, notes);
     }
 
     return successResponse(res, {
