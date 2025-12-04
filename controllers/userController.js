@@ -173,7 +173,7 @@ const updateUser = async (req, res) => {
     }
 
     // Check if user exists
-    const user = await userService.findById(idValidation.userId);
+    const user = await userService.findById(idValidation.id);
     if (!user) {
       return notFoundResponse(res, 'Usuario');
     }
@@ -195,7 +195,7 @@ const updateUser = async (req, res) => {
     }
 
     // Update user
-    await userService.update(idValidation.userId, updateData);
+    await userService.update(idValidation.id, updateData);
 
     return successResponse(res, null, 'Usuario actualizado correctamente');
 
@@ -463,7 +463,7 @@ const getUserData = async (req, res) => {
     if (!isNaN(identifier)) {
       const idValidation = validateUserId(identifier);
       if (idValidation.isValid) {
-        user = await userService.findById(idValidation.userId);
+        user = await userService.findById(idValidation.id);
       }
     }
 
@@ -524,7 +524,7 @@ const getUserById = async (req, res) => {
     }
 
     // Find user by ID
-    const user = await userService.findById(idValidation.userId);
+    const user = await userService.findById(idValidation.id);
     if (!user) {
       return notFoundResponse(res, 'Usuario');
     }
@@ -553,15 +553,15 @@ const updateUserByAdmin = async (req, res) => {
     }
 
     // Check if user exists
-    const user = await userService.findById(idValidation.userId);
+    const user = await userService.findById(idValidation.id);
     if (!user) {
       return notFoundResponse(res, 'Usuario');
     }
 
     // Prepare update data
     const updateData = {};
-    if (name !== undefined) updateData.name = name;
-    if (email !== undefined) {
+    if (name !== undefined && name !== null) updateData.name = name;
+    if (email !== undefined && email !== null) {
       // Validate that new email is not in use by another user
       if (email !== user.email) {
         const emailValidation = validateEmail(email);
@@ -576,17 +576,29 @@ const updateUserByAdmin = async (req, res) => {
         updateData.email = email;
       }
     }
-    if (role !== undefined) {
+    if (role !== undefined && role !== null) {
       // Validate that role is valid
       if (!['user', 'admin'].includes(role)) {
         return errorResponse(res, "El rol debe ser 'user' o 'admin'", 400);
       }
       updateData.role = role;
     }
-    if (is_verified !== undefined) updateData.is_verified = is_verified;
-    if (telefono !== undefined) updateData.telefono = telefono;
-    if (fecha_nacimiento !== undefined) updateData.fecha_nacimiento = fecha_nacimiento;
-    if (direccion !== undefined) updateData.direccion = direccion;
+    if (is_verified !== undefined && is_verified !== null) {
+      // Ensure is_verified is a boolean
+      updateData.is_verified = Boolean(is_verified);
+    }
+    if (telefono !== undefined) {
+      // Allow null for telefono
+      updateData.telefono = telefono === null || telefono === '' ? null : telefono;
+    }
+    if (fecha_nacimiento !== undefined) {
+      // Allow null for fecha_nacimiento
+      updateData.fecha_nacimiento = fecha_nacimiento === null || fecha_nacimiento === '' ? null : fecha_nacimiento;
+    }
+    if (direccion !== undefined) {
+      // Allow null for direccion
+      updateData.direccion = direccion === null || direccion === '' ? null : direccion;
+    }
 
     // If there's a new password, validate and hash it
     if (password) {
@@ -604,14 +616,18 @@ const updateUserByAdmin = async (req, res) => {
     }
 
     // Update user (admin operation - uses service role key)
-    const updatedUser = await userService.update(idValidation.userId, updateData, true);
+    const updatedUser = await userService.update(idValidation.id, updateData, true);
 
     // Return success response with updated data (without password)
     const formattedUser = formatUser(updatedUser);
     return successResponse(res, formattedUser, 'Usuario actualizado exitosamente');
 
   } catch (error) {
-    logger.error('Error al actualizar usuario:', { message: error.message });
+    logger.error('Error al actualizar usuario:', { 
+      message: error.message,
+      stack: error.stack,
+      error: error
+    });
     return serverErrorResponse(res, error, 'Error interno del servidor al actualizar el usuario');
   }
 };
@@ -630,7 +646,7 @@ const deleteUserByAdmin = async (req, res) => {
     }
 
     // Check if user exists (including deleted)
-    const user = await userService.findByIdAny(idValidation.userId);
+    const user = await userService.findByIdAny(idValidation.id);
     if (!user) {
       return notFoundResponse(res, 'Usuario');
     }
@@ -641,14 +657,14 @@ const deleteUserByAdmin = async (req, res) => {
     }
 
     // Prevent admin from deleting themselves
-    if (req.user && req.user.id === idValidation.userId) {
+    if (req.user && req.user.id === idValidation.id) {
       return errorResponse(res, 'No puedes eliminar tu propia cuenta', 400);
     }
 
     // Delete user (soft delete)
-    await userService.delete(idValidation.userId);
+    await userService.delete(idValidation.id);
 
-    logger.info('Usuario eliminado por administrador (soft delete)', { userId: idValidation.userId });
+    logger.info('Usuario eliminado por administrador (soft delete)', { userId: idValidation.id });
     return successResponse(res, null, 'Usuario eliminado exitosamente');
 
   } catch (error) {
@@ -671,7 +687,7 @@ const restoreUserByAdmin = async (req, res) => {
     }
 
     // Check if user exists (including deleted)
-    const user = await userService.findByIdAny(idValidation.userId);
+    const user = await userService.findByIdAny(idValidation.id);
     if (!user) {
       return notFoundResponse(res, 'Usuario');
     }
@@ -682,9 +698,9 @@ const restoreUserByAdmin = async (req, res) => {
     }
 
     // Restore user (restore soft delete)
-    const restoredUser = await userService.restore(idValidation.userId);
+    const restoredUser = await userService.restore(idValidation.id);
 
-    logger.info('Usuario restaurado por administrador', { userId: idValidation.userId });
+    logger.info('Usuario restaurado por administrador', { userId: idValidation.id });
     const formattedUser = formatUser(restoredUser);
     return successResponse(res, formattedUser, 'Usuario restaurado exitosamente');
 

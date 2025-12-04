@@ -98,10 +98,18 @@ export const userService = {
       logger.error('supabaseAdmin is not available - SUPABASE_SERVICE_ROLE_KEY may not be configured');
       throw new Error('Service role key not configured. Admin operations are disabled.');
     }
+
+    // Filter out undefined values to prevent issues
+    const cleanUpdateData = {};
+    for (const [key, value] of Object.entries(updateData)) {
+      if (value !== undefined) {
+        cleanUpdateData[key] = value;
+      }
+    }
     
     // Agregar updated_at automáticamente
     const dataToUpdate = {
-      ...updateData,
+      ...cleanUpdateData,
       updated_at: new Date().toISOString()
     };
 
@@ -114,7 +122,15 @@ export const userService = {
       .select()
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      logger.error('Supabase update error', {
+        id,
+        error: error.message,
+        errorDetails: error,
+        dataToUpdate
+      });
+      throw error;
+    }
     if (!data) {
       const notFoundError = new Error('Usuario no encontrado');
       notFoundError.code = 'PGRST116';
