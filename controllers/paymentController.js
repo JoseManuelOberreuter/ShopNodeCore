@@ -5,7 +5,7 @@ import { supabase, supabaseAdmin } from '../database.js';
 import logger from '../utils/logger.js';
 import { requireAuth } from '../utils/authHelper.js';
 import { successResponse, errorResponse, notFoundResponse, serverErrorResponse } from '../utils/responseHelper.js';
-import { sendPaymentConfirmationEmail, sendPaymentFailedEmail } from '../utils/mailer.js';
+import { sendPaymentConfirmationEmail, sendPaymentFailedEmail, sendPaymentNotificationToAdmin } from '../utils/mailer.js';
 import { releaseStockForOrder } from '../utils/stockHelper.js';
 
 // Initiate payment process
@@ -173,7 +173,7 @@ export const confirmPayment = async (req, res) => {
             transbankResponse.authorization_code,
             'paid'
           );
-          logger.info('Payment confirmation email sent successfully', {
+          logger.info('Payment confirmation email sent successfully to customer', {
             orderId: orders.id,
             orderNumber: orders.order_number,
             email: userEmail
@@ -186,11 +186,38 @@ export const confirmPayment = async (req, res) => {
         }
       } catch (emailError) {
         // Log error but don't fail the payment confirmation
-        logger.error('Error sending payment confirmation email:', {
+        logger.error('Error sending payment confirmation email to customer:', {
           message: emailError.message,
           orderId: orders.id,
           orderNumber: orders.order_number,
           error: emailError
+        });
+      }
+
+      // Send payment notification email to admin
+      try {
+        const userEmail = orders.users?.email || 'N/A';
+        const userName = orders.users?.name || 'Cliente';
+        const amount = orders.total_amount || transbankResponse.amount || 0;
+        await sendPaymentNotificationToAdmin(
+          orders.order_number,
+          orders.id,
+          userName,
+          userEmail,
+          amount,
+          transbankResponse.authorization_code
+        );
+        logger.info('Payment notification email sent successfully to admin', {
+          orderId: orders.id,
+          orderNumber: orders.order_number
+        });
+      } catch (adminEmailError) {
+        // Log error but don't fail the payment confirmation
+        logger.error('Error sending payment notification email to admin:', {
+          message: adminEmailError.message,
+          orderId: orders.id,
+          orderNumber: orders.order_number,
+          error: adminEmailError
         });
       }
     } else {
