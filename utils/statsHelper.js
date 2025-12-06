@@ -56,6 +56,10 @@ export const calculateDateRange = (period) => {
   let startDate;
   
   switch (period) {
+    case 'all':
+      // Return a very old date to include all orders
+      startDate = new Date(0); // January 1, 1970
+      break;
     case '7d':
       startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       break;

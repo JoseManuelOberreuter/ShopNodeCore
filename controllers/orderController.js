@@ -475,15 +475,16 @@ export const getOrderStats = async (req, res) => {
   try {
     if (!requireAdmin(req, res)) return;
 
-    const { period = '30d' } = req.query;
+    const { period = 'all' } = req.query;
     
     // Calculate date range
     const { start, end } = calculateDateRange(period);
 
     const orders = await orderService.findAll();
-    const filteredOrders = orders.filter(order => 
-      new Date(order.created_at) >= start
-    );
+    const filteredOrders = orders.filter(order => {
+      const orderDate = new Date(order.created_at);
+      return orderDate >= start && orderDate <= end;
+    });
 
     // Calculate statistics
     const stats = calculateOrderStats(filteredOrders, period);
