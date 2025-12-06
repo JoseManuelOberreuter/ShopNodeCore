@@ -5,7 +5,8 @@ import { supabase, supabaseAdmin } from '../database.js';
 import logger from '../utils/logger.js';
 import { requireAuth } from '../utils/authHelper.js';
 import { successResponse, errorResponse, notFoundResponse, serverErrorResponse } from '../utils/responseHelper.js';
-import { sendPaymentConfirmationEmail } from '../utils/mailer.js';
+import { sendPaymentConfirmationEmail, sendPaymentFailedEmail } from '../utils/mailer.js';
+import { releaseStockForOrder } from '../utils/stockHelper.js';
 
 // Initiate payment process
 export const initiatePayment = async (req, res) => {
@@ -124,7 +125,18 @@ export const confirmPayment = async (req, res) => {
 
     const { data: orders, error } = await supabaseAdmin
       .from('orders')
-      .select('*, users:user_id (id, email, name)')
+      .select(`
+        *,
+        users:user_id (id, email, name),
+        order_items (
+          id,
+          product_id,
+          product_name,
+          quantity,
+          price,
+          subtotal
+        )
+      `)
       .eq('transbank_token', token_ws)
       .single();
 
@@ -145,6 +157,7 @@ export const confirmPayment = async (req, res) => {
     );
 
     if (transbankResponse.status === 'AUTHORIZED') {
+      // Payment successful - stock already reserved, no need to do anything
       await orderService.updateStatus(orders.id, 'confirmed');
 
       // Send payment confirmation email to customer
@@ -174,6 +187,51 @@ export const confirmPayment = async (req, res) => {
       } catch (emailError) {
         // Log error but don't fail the payment confirmation
         logger.error('Error sending payment confirmation email:', {
+          message: emailError.message,
+          orderId: orders.id,
+          orderNumber: orders.order_number,
+          error: emailError
+        });
+      }
+    } else {
+      // Payment failed - release reserved stock and cancel order automatically
+      try {
+        await releaseStockForOrder(orders.id);
+        logger.info(`Stock liberado para orden ${orders.id} después de pago fallido`);
+      } catch (stockError) {
+        // Log error but continue with cancellation
+        logger.error(`Error liberando stock para orden ${orders.id}:`, { 
+          message: stockError.message 
+        });
+      }
+
+      // Cancel order automatically
+      await orderService.updateStatus(orders.id, 'cancelled');
+      logger.info(`Orden ${orders.id} cancelada automáticamente debido a pago fallido`);
+
+      // Send payment failed email to customer
+      try {
+        const userEmail = orders.users?.email;
+        if (userEmail) {
+          await sendPaymentFailedEmail(
+            userEmail,
+            orders.order_number,
+            orders.id
+          );
+          logger.info('Payment failed email sent successfully', {
+            orderId: orders.id,
+            orderNumber: orders.order_number,
+            email: userEmail
+          });
+        } else {
+          logger.warn('User email not found for order, skipping payment failed email notification', {
+            orderId: orders.id,
+            userId: orders.user_id
+          });
+        }
+      } catch (emailError) {
+        // Log error but don't fail the payment failure process
+        logger.error('Error sending payment failed email:', {
           message: emailError.message,
           orderId: orders.id,
           orderNumber: orders.order_number,

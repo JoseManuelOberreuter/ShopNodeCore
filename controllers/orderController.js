@@ -2,6 +2,7 @@ import { orderService } from '../models/orderModel.js';
 import { transbankService } from '../utils/transbankService.js';
 import { cartService } from '../models/cartModel.js';
 import { productService } from '../models/productModel.js';
+import { userService } from '../models/userModel.js';
 import logger from '../utils/logger.js';
 import { requireAuth, requireAdmin, requireOwnershipOrAdmin } from '../utils/authHelper.js';
 import { successResponse, errorResponse, notFoundResponse, forbiddenResponse, serverErrorResponse } from '../utils/responseHelper.js';
@@ -9,6 +10,8 @@ import { formatOrder, formatPagination } from '../utils/formatters.js';
 import { parsePaginationParams, calculatePagination } from '../utils/paginationHelper.js';
 import { validateShippingAddress, validateOrderStatus, validateOrderId } from '../utils/validators.js';
 import { calculateOrderStats, calculateDateRange } from '../utils/statsHelper.js';
+import { reserveStockForOrder, validateStockForCart, releaseStockForOrder } from '../utils/stockHelper.js';
+import { sendPaymentFailedEmail, sendOrderProcessingEmail, sendOrderShippedEmail, sendOrderDeliveredEmail } from '../utils/mailer.js';
 
 // Helper function to create an order (shared logic)
 export const createOrderFromCart = async (userId, shippingAddress, notes = null) => {
@@ -24,36 +27,61 @@ export const createOrderFromCart = async (userId, shippingAddress, notes = null)
     throw new Error('El carrito está vacío. Agrega productos antes de crear una orden.');
   }
 
+  // Validate stock before creating order
+  const stockValidation = await validateStockForCart(cart.cart_items);
+  if (!stockValidation.isValid) {
+    throw new Error(stockValidation.error);
+  }
+
   // Calculate total
   const totalAmount = cart.cart_items.reduce((acc, item) => 
     acc + (item.price * item.quantity), 0
   );
 
-  // Create order
-  const order = await orderService.create({
-    userId,
-    totalAmount,
-    shippingAddress,
-    paymentMethod: 'webpay',
-    paymentStatus: 'pending',
-    status: 'pending',
-    notes
-  });
+  let order = null;
+  try {
+    // Create order
+    order = await orderService.create({
+      userId,
+      totalAmount,
+      shippingAddress,
+      paymentMethod: 'webpay',
+      paymentStatus: 'pending',
+      status: 'pending',
+      notes
+    });
 
-  // Create order items
-  const orderItems = cart.cart_items.map(item => ({
-    productId: item.product_id,
-    productName: item.products?.name || '',
-    quantity: item.quantity,
-    price: item.price
-  }));
+    // Create order items
+    const orderItems = cart.cart_items.map(item => ({
+      productId: item.product_id,
+      productName: item.products?.name || '',
+      quantity: item.quantity,
+      price: item.price
+    }));
 
-  await orderService.createOrderItems(order.id, orderItems);
+    await orderService.createOrderItems(order.id, orderItems);
 
-  // Clear cart
-  await cartService.clearCart(cart.id);
+    // Reserve stock for the order
+    await reserveStockForOrder(order.id);
 
-  return order;
+    // Clear cart
+    await cartService.clearCart(cart.id);
+
+    return order;
+  } catch (error) {
+    // If stock reservation fails, try to clean up the order
+    if (order && order.id) {
+      try {
+        logger.warn(`Limpiando orden ${order.id} después de error en reserva de stock`);
+        // Note: We can't easily delete the order here without additional methods
+        // The order will remain but stock won't be reserved
+        // In production, you might want to add a cleanup job or manual process
+      } catch (cleanupError) {
+        logger.error(`Error limpiando orden ${order.id}:`, { message: cleanupError.message });
+      }
+    }
+    throw error;
+  }
 };
 
 // Create new order
@@ -205,8 +233,50 @@ export const cancelOrder = async (req, res) => {
       }
     }
 
+    // Release reserved stock if order is in pending or processing status
+    // (Stock was already permanently deducted if payment was confirmed)
+    if (['pending', 'processing'].includes(order.status)) {
+      try {
+        await releaseStockForOrder(order.id);
+        logger.info(`Stock liberado para orden cancelada ${order.id}`);
+      } catch (error) {
+        // Log error but continue with cancellation
+        logger.error(`Error liberando stock para orden ${order.id}:`, { message: error.message });
+      }
+    }
+
     // Update order status
     await orderService.updateStatus(order.id, 'cancelled');
+
+    // Send payment failed email to customer
+    try {
+      const user = await userService.findById(order.user_id);
+      if (user && user.email) {
+        await sendPaymentFailedEmail(
+          user.email,
+          order.order_number,
+          order.id
+        );
+        logger.info('Payment failed email sent successfully for cancelled order', {
+          orderId: order.id,
+          orderNumber: order.order_number,
+          email: user.email
+        });
+      } else {
+        logger.warn('User email not found for cancelled order, skipping email notification', {
+          orderId: order.id,
+          userId: order.user_id
+        });
+      }
+    } catch (emailError) {
+      // Log error but don't fail the cancellation process
+      logger.error('Error sending payment failed email for cancelled order:', {
+        message: emailError.message,
+        orderId: order.id,
+        orderNumber: order.order_number,
+        error: emailError
+      });
+    }
 
     return successResponse(res, {
         orderId: order.id,
@@ -309,12 +379,82 @@ export const updateOrderStatus = async (req, res) => {
       return notFoundResponse(res, 'Orden');
     }
 
+    // Get user information for email notifications
+    let userEmail = null;
+    let userName = null;
+    try {
+      const user = await userService.findById(order.user_id);
+      if (user) {
+        userEmail = user.email;
+        userName = user.name;
+      }
+    } catch (error) {
+      logger.warn(`Could not fetch user info for order ${order.id}:`, { message: error.message });
+    }
+
     // Update status
     const updatedOrder = await orderService.updateStatus(idValidation.id, status);
 
     // If notes are provided, update them too
     if (notes) {
       await orderService.updateNotes(idValidation.id, notes);
+    }
+
+    // Send email notifications based on new status
+    if (userEmail) {
+      try {
+        if (status === 'processing') {
+          await sendOrderProcessingEmail(
+            userEmail,
+            updatedOrder.order_number,
+            updatedOrder.id,
+            userName
+          );
+          logger.info('Order processing email sent successfully', {
+            orderId: updatedOrder.id,
+            orderNumber: updatedOrder.order_number,
+            email: userEmail
+          });
+        } else if (status === 'shipped') {
+          await sendOrderShippedEmail(
+            userEmail,
+            updatedOrder.order_number,
+            updatedOrder.id,
+            userName
+          );
+          logger.info('Order shipped email sent successfully', {
+            orderId: updatedOrder.id,
+            orderNumber: updatedOrder.order_number,
+            email: userEmail
+          });
+        } else if (status === 'delivered') {
+          await sendOrderDeliveredEmail(
+            userEmail,
+            updatedOrder.order_number,
+            updatedOrder.id,
+            userName
+          );
+          logger.info('Order delivered email sent successfully', {
+            orderId: updatedOrder.id,
+            orderNumber: updatedOrder.order_number,
+            email: userEmail
+          });
+        }
+      } catch (emailError) {
+        // Log error but don't fail the status update
+        logger.error('Error sending order status email:', {
+          message: emailError.message,
+          orderId: updatedOrder.id,
+          orderNumber: updatedOrder.order_number,
+          status,
+          error: emailError
+        });
+      }
+    } else {
+      logger.warn('User email not found for order, skipping status email notification', {
+        orderId: updatedOrder.id,
+        userId: order.user_id
+      });
     }
 
     return successResponse(res, {

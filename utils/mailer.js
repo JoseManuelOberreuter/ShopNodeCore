@@ -286,4 +286,231 @@ const sendPaymentConfirmationEmail = async (email, orderNumber, orderId, totalAm
   }
 };
 
-export { sendVerificationEmail, sendPasswordResetEmail, sendContactEmail, sendContactAcknowledgementEmail, sendPaymentConfirmationEmail };
+// Send payment failed/cancelled email
+const sendPaymentFailedEmail = async (email, orderNumber, orderId) => {
+  if (!process.env.EMAIL_USER) {
+    throw new Error('EMAIL_USER no está configurado en las variables de entorno');
+  }
+
+  if (!process.env.FRONTEND_URL) {
+    throw new Error('FRONTEND_URL no está configurado en las variables de entorno');
+  }
+
+  const contactUrl = `${process.env.FRONTEND_URL}/contact`;
+
+  const bodyHtml = `
+    <p style="font-size: 18px; font-weight: bold; color: ${brandConfig.primaryColor}; margin-bottom: 20px; text-align: center;">
+      Problema con tu pago
+    </p>
+    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc3545;">
+      <p style="font-size: 16px; color: #333; margin-top: 0;">
+        Hemos detectado un problema con el pago de tu orden <strong>${orderNumber}</strong>.
+      </p>
+      <p style="font-size: 16px; color: #333;">
+        Si tuviste problemas con el pago, contacta directamente con nosotros en nuestra página web en el menú de contacto.
+      </p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${contactUrl}" style="display: inline-block; background: ${brandConfig.primaryColor}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+          Ir a Contacto
+        </a>
+      </div>
+      <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-top: 20px;">
+        <p style="margin: 0; font-size: 14px; color: #666;">
+          <strong>Número de Orden:</strong> ${orderNumber}<br>
+          <strong>ID de Orden:</strong> ${orderId}
+        </p>
+      </div>
+    </div>
+    <p style="font-size: 16px; color: #555; margin-top: 20px;">
+      Estamos aquí para ayudarte. Si tienes alguna pregunta, no dudes en contactarnos.
+    </p>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: `Problema con el pago - Orden ${orderNumber}`,
+    html: buildBrandedEmail({
+      title: 'Problema con el pago',
+      subtitle: 'Necesitamos tu ayuda',
+      bodyHtml
+    })
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Send order processing email
+const sendOrderProcessingEmail = async (email, orderNumber, orderId, customerName) => {
+  if (!process.env.EMAIL_USER) {
+    throw new Error('EMAIL_USER no está configurado en las variables de entorno');
+  }
+
+  const firstName = customerName ? customerName.split(' ')[0] : 'Cliente';
+
+  const bodyHtml = `
+    <p style="font-size: 18px; font-weight: bold; color: ${brandConfig.secondaryColor}; margin-bottom: 20px; text-align: center;">
+      ¡Tu pedido está siendo procesado!
+    </p>
+    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${brandConfig.secondaryColor};">
+      <p style="font-size: 16px; color: #333; margin-top: 0;">
+        Hola ${firstName},
+      </p>
+      <p style="font-size: 16px; color: #333;">
+        Te informamos que tu pedido <strong>${orderNumber}</strong> ya está siendo procesado y preparado para su envío.
+      </p>
+      <p style="font-size: 16px; color: #333;">
+        Nuestro equipo está trabajando para preparar tu pedido con el mayor cuidado. Te notificaremos cuando sea enviado.
+      </p>
+      <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-top: 20px;">
+        <p style="margin: 0; font-size: 14px; color: #666;">
+          <strong>Número de Orden:</strong> ${orderNumber}<br>
+          <strong>ID de Orden:</strong> ${orderId}
+        </p>
+      </div>
+    </div>
+    <p style="font-size: 16px; color: #555; margin-top: 20px;">
+      Gracias por tu paciencia. ¡Tu pedido estará en camino pronto!
+    </p>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: `Tu pedido está siendo procesado - Orden ${orderNumber}`,
+    html: buildBrandedEmail({
+      title: 'Pedido en Proceso',
+      subtitle: 'Preparando tu compra',
+      bodyHtml
+    })
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Send order shipped email
+const sendOrderShippedEmail = async (email, orderNumber, orderId, customerName) => {
+  if (!process.env.EMAIL_USER) {
+    throw new Error('EMAIL_USER no está configurado en las variables de entorno');
+  }
+
+  const firstName = customerName ? customerName.split(' ')[0] : 'Cliente';
+
+  const bodyHtml = `
+    <p style="font-size: 18px; font-weight: bold; color: ${brandConfig.secondaryColor}; margin-bottom: 20px; text-align: center;">
+      ¡Tu pedido ha sido enviado! 🚚
+    </p>
+    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${brandConfig.secondaryColor};">
+      <p style="font-size: 16px; color: #333; margin-top: 0;">
+        Hola ${firstName},
+      </p>
+      <p style="font-size: 16px; color: #333;">
+        ¡Excelentes noticias! Tu pedido <strong>${orderNumber}</strong> ha sido enviado y está en camino.
+      </p>
+      <p style="font-size: 16px; color: #333;">
+        Pronto recibirás tu compra. Te recomendamos estar atento para recibir tu pedido.
+      </p>
+      <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-top: 20px;">
+        <p style="margin: 0; font-size: 14px; color: #666;">
+          <strong>Número de Orden:</strong> ${orderNumber}<br>
+          <strong>ID de Orden:</strong> ${orderId}
+        </p>
+      </div>
+    </div>
+    <p style="font-size: 16px; color: #555; margin-top: 20px;">
+      Si tienes alguna pregunta sobre tu envío, no dudes en contactarnos.
+    </p>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: `¡Tu pedido ha sido enviado! - Orden ${orderNumber}`,
+    html: buildBrandedEmail({
+      title: 'Pedido Enviado',
+      subtitle: 'En camino a tu hogar',
+      bodyHtml
+    })
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Send order delivered email
+const sendOrderDeliveredEmail = async (email, orderNumber, orderId, customerName) => {
+  if (!process.env.EMAIL_USER) {
+    throw new Error('EMAIL_USER no está configurado en las variables de entorno');
+  }
+
+  if (!process.env.FRONTEND_URL) {
+    throw new Error('FRONTEND_URL no está configurado en las variables de entorno');
+  }
+
+  const firstName = customerName ? customerName.split(' ')[0] : 'Cliente';
+  const shopUrl = `${process.env.FRONTEND_URL}/shop`;
+
+  const bodyHtml = `
+    <p style="font-size: 18px; font-weight: bold; color: ${brandConfig.secondaryColor}; margin-bottom: 20px; text-align: center;">
+      ¡Tu pedido ha sido entregado! 📦
+    </p>
+    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${brandConfig.secondaryColor};">
+      <p style="font-size: 16px; color: #333; margin-top: 0;">
+        Hola ${firstName},
+      </p>
+      <p style="font-size: 16px; color: #333;">
+        ¡Esperamos que hayas recibido tu pedido <strong>${orderNumber}</strong> en perfectas condiciones!
+      </p>
+      <p style="font-size: 16px; color: #333;">
+        ¿Cómo fue tu experiencia? Nos encantaría saber qué tal te pareció todo. Si tienes alguna pregunta o comentario, no dudes en contactarnos.
+      </p>
+      <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-top: 20px;">
+        <p style="margin: 0; font-size: 14px; color: #666;">
+          <strong>Número de Orden:</strong> ${orderNumber}<br>
+          <strong>ID de Orden:</strong> ${orderId}
+        </p>
+      </div>
+    </div>
+    <p style="font-size: 16px; color: #555; margin-top: 20px; margin-bottom: 20px;">
+      ¡Esperamos verte nuevamente! Te invitamos a seguir comprando con nosotros y descubrir más productos increíbles.
+    </p>
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${shopUrl}" style="display: inline-block; background: ${brandConfig.primaryColor}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">
+        Ver Productos
+      </a>
+    </div>
+    <p style="font-size: 14px; color: #888; margin-top: 20px; text-align: center;">
+      Gracias por confiar en nosotros. ¡Esperamos verte pronto!
+    </p>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: `¡Tu pedido ha sido entregado! - Orden ${orderNumber}`,
+    html: buildBrandedEmail({
+      title: 'Pedido Entregado',
+      subtitle: 'Gracias por tu compra',
+      bodyHtml
+    })
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    throw error;
+  }
+};
+
+export { sendVerificationEmail, sendPasswordResetEmail, sendContactEmail, sendContactAcknowledgementEmail, sendPaymentConfirmationEmail, sendPaymentFailedEmail, sendOrderProcessingEmail, sendOrderShippedEmail, sendOrderDeliveredEmail };
